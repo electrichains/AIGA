@@ -89,7 +89,7 @@ function startHttpAndSseServer() {
     }
 
     try {
-      await transport.handlePostMessage(req, res);
+      await transport.handlePostMessage(req, res, req.body);
     } catch (err: any) {
       console.error(`[MCP SSE] Error processing message for session ${sessionId}:`, err);
       if (!res.headersSent) {
