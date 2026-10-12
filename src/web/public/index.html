@@ -73,6 +73,38 @@
     </div>
 
     <div>
+      <div class="hud-section-title">KMZ / KML Terrain & Plot Import</div>
+      <input type="file" id="kmzFileInput" accept=".kmz,.kml" style="display: none;">
+      <button class="btn btn-primary" id="btnUploadKmz" style="width: 100%; margin-bottom: 6px;">
+        📁 Upload KMZ / KML File
+      </button>
+      <div id="dropZoneNotice" style="font-size: 0.72rem; color: var(--text-muted); text-align: center;">
+        or drag & drop .kmz / .kml onto 3D globe
+      </div>
+    </div>
+
+    <div>
+      <div class="hud-section-title">Build on Top • Propose Family Plot</div>
+      <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+        <select id="selectFamily" style="background: var(--bg-surface-hover); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 8px; font-size: 0.8rem; flex: 1;">
+          <option value="1">Family 1</option>
+          <option value="2">Family 2</option>
+          <option value="3">Family 3</option>
+          <option value="4">Family 4</option>
+          <option value="5">Family 5</option>
+          <option value="6">Family 6</option>
+          <option value="7">Family 7</option>
+          <option value="8">Family 8</option>
+          <option value="9">Family 9</option>
+          <option value="10">Family 10</option>
+          <option value="11">Family 11</option>
+          <option value="12">Family 12</option>
+        </select>
+        <button class="btn" id="btnDrawPlot" style="flex: 1;">📍 Place Plot</button>
+      </div>
+    </div>
+
+    <div>
       <div class="hud-section-title">Spatial Actions</div>
       <div class="btn-group">
         <button class="btn" id="btnRecenter">Recenter</button>

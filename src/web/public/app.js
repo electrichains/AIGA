@@ -153,6 +153,46 @@ function selectFamily(familyId) {
   inspector.innerHTML = `<div style="color: var(--text-muted);">Family ${familyId} selected. Waiting for spatial telemetry...</div>`;
 }
 
+function updateInspectorWithValidation(val) {
+  const inspector = document.getElementById('inspectorContent');
+  if (!inspector) return;
+  const isPassed = val.passed;
+  let html = `
+    <div class="inspector-row">
+      <span class="inspector-key">Audit Status</span>
+      <span class="inspector-val" style="color: ${isPassed ? '#3fb950' : '#f85149'};">
+        ${isPassed ? 'APPROVED (Compliant)' : 'VIOLATION DETECTED'}
+      </span>
+    </div>
+    <div class="inspector-row">
+      <span class="inspector-key">Target Family</span>
+      <span class="inspector-val">Family ${val.family_id}</span>
+    </div>
+    <div class="inspector-row">
+      <span class="inspector-key">Plot Area</span>
+      <span class="inspector-val">${val.metrics.plotAreaSqm} m² (min 500 required)</span>
+    </div>
+  `;
+
+  if (val.violations && val.violations.length > 0) {
+    html += `<div style="margin-top: 8px; color: #f85149; font-size: 0.76rem;">`;
+    for (const v of val.violations) {
+      html += `<div>• <b>${v.rule}:</b> ${v.message}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  if (val.corrections && val.corrections.length > 0) {
+    html += `<div style="margin-top: 8px; color: #58a6ff; font-size: 0.76rem;">`;
+    for (const c of val.corrections) {
+      html += `<div>💡 <b>Correction:</b> ${c.description}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  inspector.innerHTML = html;
+}
+
 // Render GeoJSON Features into Cesium
 function renderGeoJsonFeatures(featureCollection) {
   if (!viewer || !featureCollection || !featureCollection.features) return;
@@ -275,6 +315,15 @@ function connectWebSocket() {
           // Re-request full state
           ws.send(JSON.stringify({ type: 'request_sync' }));
         }
+      } else if (msg.type === 'validation_result') {
+        const val = msg.result;
+        if (val.passed) {
+          appendFeed(`✓ Proposed plot for Family ${val.family_id} PASSED all spatial rules (${val.metrics.plotAreaSqm} m²)!`);
+        } else {
+          const vMsg = val.violations.map((v) => v.message).join(' | ');
+          appendFeed(`⚠️ Spatial rule violation for Family ${val.family_id}: ${vMsg}`, true);
+        }
+        updateInspectorWithValidation(val);
       } else if (msg.type === 'presence') {
         document.getElementById('clientCount').textContent = `${msg.totalConnected} connected`;
       }
@@ -295,11 +344,141 @@ function connectWebSocket() {
   };
 }
 
+// Upload KMZ or KML file to AIGA Engine
+async function uploadKmzFile(file) {
+  if (!file) return;
+  appendFeed(`Reading ${file.name} (${Math.round(file.size / 1024)} KB)...`);
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const resultStr = e.target.result;
+      // Extract base64 payload (remove data:application/...;base64, prefix)
+      const base64Data = resultStr.includes(',') ? resultStr.split(',')[1] : resultStr;
+
+      appendFeed(`Uploading ${file.name} to spatial engine...`);
+      const response = await fetch('/api/upload-kmz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kmz_base64: base64Data,
+          name: file.name.replace(/\.(kmz|kml)$/i, ''),
+        }),
+      });
+
+      if (!response.ok) {
+        const errJson = await response.json();
+        throw new Error(errJson.error || 'Server rejected KMZ upload');
+      }
+
+      const res = await response.json();
+      appendFeed(`✓ Successfully loaded ${file.name}: ${res.summary.plotCount} plots, ${res.totalFeatures} features.`);
+
+      // Fly camera to the uploaded layer center/bbox
+      if (res.summary.center) {
+        const [cLng, cLat] = res.summary.center;
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(cLng, cLat - 0.003, 500),
+          orientation: {
+            heading: Cesium.Math.toRadians(0),
+            pitch: Cesium.Math.toRadians(-45),
+            roll: 0.0,
+          },
+          duration: 2.5,
+        });
+      }
+    } catch (err) {
+      appendFeed(`❌ Upload error: ${err.message}`, true);
+    }
+  };
+
+  reader.onerror = () => {
+    appendFeed('❌ Failed to read selected file.', true);
+  };
+
+  reader.readAsDataURL(file);
+}
+
+let isPlacingPlot = false;
+
+function togglePlacePlotMode() {
+  isPlacingPlot = !isPlacingPlot;
+  const btn = document.getElementById('btnDrawPlot');
+  if (isPlacingPlot) {
+    btn.style.backgroundColor = '#d29922';
+    btn.textContent = '❌ Cancel';
+    appendFeed('Plot Placement Mode: Click anywhere on 3D terrain to place family plot.');
+  } else {
+    btn.style.backgroundColor = '';
+    btn.textContent = '📍 Place Plot';
+    appendFeed('Exited plot placement mode.');
+  }
+}
+
+function handleTerrainClick(cartesian) {
+  if (!isPlacingPlot || !cartesian) return;
+
+  const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+  const lng = Cesium.Math.toDegrees(cartographic.longitude);
+  const lat = Cesium.Math.toDegrees(cartographic.latitude);
+  const familyId = parseInt(document.getElementById('selectFamily').value, 10) || 1;
+
+  // Generate a ~650 m² hexagonal plot around clicked point (radius ~15.5m = 0.00014 degrees)
+  const radiusDeg = 0.00015;
+  const points = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (i * 60 * Math.PI) / 180;
+    points.push([lng + radiusDeg * Math.cos(angle), lat + radiusDeg * Math.sin(angle)]);
+  }
+  points.push(points[0]); // close polygon
+
+  const proposedFeature = {
+    type: 'Feature',
+    properties: {
+      family_id: familyId,
+      name: `Proposed Plot - Family ${familyId}`,
+      layerType: 'plot',
+    },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [points],
+    },
+  };
+
+  appendFeed(`Validating proposed plot for Family ${familyId} at [${lat.toFixed(4)}, ${lng.toFixed(4)}]...`);
+
+  // Send to server over WebSocket for validation
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(
+      JSON.stringify({
+        type: 'validate_edit',
+        family_id: familyId,
+        feature: proposedFeature,
+        requestId: Date.now(),
+      })
+    );
+  }
+
+  togglePlacePlotMode();
+}
+
 // DOM Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
   initCesium();
   buildFamilyBar();
   connectWebSocket();
+
+  // Screen click handler for plot placement
+  const terrainHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+  terrainHandler.setInputAction((movement) => {
+    if (isPlacingPlot) {
+      const ray = viewer.camera.getPickRay(movement.position);
+      const cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+      if (cartesian) {
+        handleTerrainClick(cartesian);
+      }
+    }
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
   document.getElementById('btnRecenter').addEventListener('click', flyToVillageCenter);
 
@@ -309,4 +488,34 @@ document.addEventListener('DOMContentLoaded', () => {
       appendFeed('✓ Audit Complete: All 12 plots pass minimum 500m² area, 10m water setback, and non-overlap constraints.');
     }, 500);
   });
+
+  // KMZ File Upload trigger
+  const fileInput = document.getElementById('kmzFileInput');
+  const uploadBtn = document.getElementById('btnUploadKmz');
+  uploadBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) {
+      uploadKmzFile(e.target.files[0]);
+    }
+  });
+
+  // Drag and Drop on window
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.name.endsWith('.kmz') || file.name.endsWith('.kml')) {
+        uploadKmzFile(file);
+      } else {
+        appendFeed('⚠️ Please drop a valid .kmz or .kml file.', true);
+      }
+    }
+  });
+
+  // Place Plot button
+  document.getElementById('btnDrawPlot').addEventListener('click', togglePlacePlotMode);
 });

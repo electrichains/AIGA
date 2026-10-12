@@ -5,7 +5,15 @@ import express from 'express';
 import cors from 'cors';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { createMcpServer, runStdioServer } from './mcp/server.js';
-import { initWebSocketServer, getCurrentVillageState } from './web/websocket.js';
+import {
+  initWebSocketServer,
+  getCurrentVillageState,
+  setCurrentVillageState,
+  broadcastLayerUpdate,
+} from './web/websocket.js';
+import { parseKmzLayers } from './spatial/kmzParser.js';
+import { FAMILY_COLORS } from './spatial/generator.js';
+import * as turf from '@turf/turf';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,6 +55,89 @@ function startHttpAndSseServer() {
   // REST endpoint for current village state
   app.get('/api/village', (_req, res) => {
     res.json(getCurrentVillageState());
+  });
+
+  // REST endpoint to upload and visualize KMZ/KML files directly
+  app.post('/api/upload-kmz', async (req, res) => {
+    try {
+      const { kmz_base64, kmz_url, name } = req.body;
+      if (!kmz_base64 && !kmz_url) {
+        res.status(400).json({ error: 'Either kmz_base64 or kmz_url must be provided' });
+        return;
+      }
+
+      const parsed = await parseKmzLayers({ kmz_base64, kmz_url });
+
+      // Build plots with 12 family assignments and styles
+      const enrichedPlots = parsed.plots.map((p, idx) => {
+        const family_id = (idx % 12) + 1;
+        const colorHex = FAMILY_COLORS[(family_id - 1) % FAMILY_COLORS.length];
+        const centroid = turf.centroid(p.feature).geometry.coordinates as [number, number];
+
+        // Ensure feature properties carry styling for Cesium
+        p.feature.properties = {
+          ...p.feature.properties,
+          id: p.id,
+          family_id,
+          familyName: p.name || `Family #${family_id}`,
+          layerType: 'plot',
+          colorHex,
+          fillColor: colorHex,
+          fillOpacity: 0.65,
+          strokeColor: '#FFFFFF',
+          strokeWidth: 2,
+          areaSqm: p.areaSqm,
+          extrudeHeightMeters: 5 + (family_id % 3) * 2,
+        };
+
+        return {
+          family_id,
+          familyName: p.name || `Family #${family_id}`,
+          areaSqm: p.areaSqm,
+          centroid: [Math.round(centroid[0] * 1000000) / 1000000, Math.round(centroid[1] * 1000000) / 1000000] as [number, number],
+          colorHex,
+        };
+      });
+
+      const newVillageState = {
+        villageName: name || 'Custom Uploaded KMZ Village',
+        kml: '',
+        featureCollection: parsed.featureCollection,
+        summary: {
+          plotCount: parsed.summary.plotCount,
+          hubRadiusMeters: 35,
+          totalVillageAreaSqm: parsed.summary.totalPlotAreaSqm,
+          averagePlotAreaSqm:
+            parsed.summary.plotCount > 0
+              ? Math.round((parsed.summary.totalPlotAreaSqm / parsed.summary.plotCount) * 100) / 100
+              : 0,
+          plots: enrichedPlots,
+          bbox: parsed.summary.bbox,
+          center: parsed.summary.center,
+          elevation: parsed.summary.elevation,
+        },
+      };
+
+      setCurrentVillageState(newVillageState as any);
+
+      // Broadcast to all active family dashboards via WebSocket
+      broadcastLayerUpdate({
+        layer_type: 'village_reset',
+        action: 'sync',
+        payload: newVillageState,
+        source: 'web_client',
+      });
+
+      res.json({
+        status: 'success',
+        villageName: newVillageState.villageName,
+        summary: newVillageState.summary,
+        totalFeatures: parsed.summary.totalFeatures,
+      });
+    } catch (err: any) {
+      console.error('[API] KMZ Upload error:', err);
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // MCP SSE Transport setup

@@ -11,6 +11,8 @@ export interface ParsedKMZResult {
     plotCount: number;
     waterFeatureCount: number;
     roadFeatureCount: number;
+    bbox: [number, number, number, number] | null;
+    center: [number, number] | null; // [lng, lat]
     elevation: {
       minMeters: number | null;
       maxMeters: number | null;
@@ -21,6 +23,7 @@ export interface ParsedKMZResult {
   plots: Array<{
     id: string;
     name: string;
+    family_id?: number;
     areaSqm: number;
     elevationMeters: number | null;
     feature: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>;
@@ -156,6 +159,20 @@ export async function parseKmzLayers(options: {
     ? Math.round((elevations.reduce((a, b) => a + b, 0) / elevations.length) * 10) / 10
     : null;
 
+  let calculatedBbox: [number, number, number, number] | null = null;
+  let calculatedCenter: [number, number] | null = null;
+
+  if (geojson.features.length > 0) {
+    try {
+      const b = turf.bbox(geojson);
+      calculatedBbox = [b[0], b[1], b[2], b[3]];
+      const c = turf.center(geojson);
+      calculatedCenter = [c.geometry.coordinates[0], c.geometry.coordinates[1]];
+    } catch {
+      // ignore bbox calculation fallback
+    }
+  }
+
   return {
     featureCollection: geojson,
     summary: {
@@ -163,6 +180,8 @@ export async function parseKmzLayers(options: {
       plotCount: plots.length,
       waterFeatureCount,
       roadFeatureCount,
+      bbox: calculatedBbox,
+      center: calculatedCenter,
       elevation: {
         minMeters: minElevation,
         maxMeters: maxElevation,
