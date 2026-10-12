@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import JSZip from 'jszip';
 import { DOMParser } from '@xmldom/xmldom';
 import * as toGeoJSON from '@tmcw/togeojson';
