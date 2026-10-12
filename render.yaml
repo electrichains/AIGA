@@ -1,0 +1,21 @@
+# Render Blueprint deployment spec for AIGA (AI Village & Spatial Planning Engine)
+# Autonomous MCP Tool Provider & 3D Web Dashboard for JamotLite
+
+services:
+  - type: web
+    name: aiga-mcp
+    runtime: node
+    plan: starter
+    region: singapore
+    branch: main
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: NODE_ENV
+        value: production
+      - key: CESIUM_ION_TOKEN
+        sync: false

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIGA — AI Village & Spatial Planning Engine</title>
+  
+  <!-- CesiumJS CSS & JS -->
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Cesium.js"></script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Top Navigation & Status -->
+  <header class="top-nav">
+    <div class="brand-card">
+      <div class="brand-title">
+        <span>AIGA 3D Engine</span>
+        <span class="brand-badge">MCP Provider</span>
+        <span class="brand-badge" style="background: rgba(63, 185, 80, 0.15); color: #3fb950; border-color: rgba(63, 185, 80, 0.3);">JamotLite</span>
+      </div>
+      <div class="brand-sub">Autonomous AI Village & Spatial Planning Engine • 12 Family Permaculture Node</div>
+    </div>
+
+    <div class="status-badge">
+      <div class="live-dot" id="liveDot"></div>
+      <div style="font-size: 0.8rem;">
+        <div style="font-weight: 600;" id="wsStatus">Connecting to MCP WS...</div>
+        <div style="font-size: 0.72rem; color: var(--text-muted);" id="clientCount">0 connected</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 12 Families Quick Selection Bar -->
+  <div class="family-bar" id="familyBar">
+    <!-- Populated dynamically with 12 family pills -->
+  </div>
+
+  <!-- Cesium 3D Globe Container -->
+  <div id="cesiumContainer"></div>
+
+  <!-- Floating HUD Sidebar -->
+  <aside class="sidebar-hud">
+    <div>
+      <div class="hud-section-title">Village Spatial Overview</div>
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="stat-label">Total Families</div>
+          <div class="stat-val" id="statFamilyCount">12</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Village Area</div>
+          <div class="stat-val" id="statTotalArea">0 m²</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Avg Plot Area</div>
+          <div class="stat-val" id="statAvgArea">0 m²</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Riparian Buffer</div>
+          <div class="stat-val" style="color: #58a6ff;">10m Protected</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="hud-section-title">Selected Plot Inspector</div>
+      <div class="inspector-card" id="inspectorContent">
+        <div style="color: var(--text-muted); font-size: 0.78rem;">Click any family plot or pick from the top bar to inspect spatial constraints.</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="hud-section-title">Spatial Actions</div>
+      <div class="btn-group">
+        <button class="btn" id="btnRecenter">Recenter</button>
+        <button class="btn btn-primary" id="btnAudit">Run Audit</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="hud-section-title">Live MCP Activity Stream</div>
+      <div class="event-feed" id="eventFeed">
+        <div class="feed-item">Listening for JamotLite spatial tool invocations...</div>
+      </div>
+    </div>
+  </aside>
+
+  <script src="app.js"></script>
+</body>
+</html>
