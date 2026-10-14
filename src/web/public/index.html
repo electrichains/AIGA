@@ -1,125 +1,864 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AIGA — AI Village & Spatial Planning Engine</title>
-  
-  <!-- CesiumJS CSS & JS -->
-  <link href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
-  <script src="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Cesium.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AIGA Village · Nusa Dua</title>
+<meta name="description" content="Walk the land of AIGA Village in Nusa Dua, Bali, with Asara, and imagine the village you would build with a few other families.">
+<meta property="og:title" content="AIGA Village · Nusa Dua">
+<meta property="og:description" content="A blank page for a few families. Walk the land with Asara and imagine your place.">
+<meta name="theme-color" content="#0c1714">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+img{max-width:100%}
+/* Layout: full-bleed living 3D land; a guide panel docks right on desktop, slides up from the bottom on phones. */
+:root{
+  --night:#0c1714;      /* ground of the page: forest at dusk */
+  --night-2:#13221d;    /* raised surfaces */
+  --line:#2a3b34;
+  --text:#ece6d6;       /* warm paper */
+  --muted:#a3ab9c;
+  --sun:#e9b96a;        /* the guide, highlights */
+  --water:#7cc6de;
+  --leaf:#93c98d;
+  --display:"Young Serif",Georgia,"Times New Roman",serif;
+  --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --panel-w:390px;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--night);color:var(--text);font-family:var(--body);font-size:15px;overflow:hidden}
+#scene{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+#scene:active{cursor:grabbing}
 
-  <link rel="stylesheet" href="style.css">
+/* top bar */
+.top{position:fixed;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top,0px) + 16px) 20px 0;display:flex;align-items:center;gap:20px;pointer-events:none;z-index:5}
+.brand{font-family:var(--display);font-size:20px;letter-spacing:.01em;white-space:nowrap}
+.brand span{color:var(--sun)}
+.steps{display:flex;gap:6px;flex-wrap:wrap;list-style:none;margin:0;padding:0}
+.steps li{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:5px 10px;border-radius:99px;border:1px solid transparent;transition:all .6s}
+.steps li.on{color:var(--night);background:var(--sun)}
+.steps li.done{color:var(--text);border-color:var(--line)}
+
+/* arrival */
+#arrival{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:0 24px calc(env(safe-area-inset-bottom,0px) + 9vh);z-index:6;background:linear-gradient(to top,rgba(12,23,20,.85),rgba(12,23,20,0) 55%);transition:opacity 1.2s}
+#arrival.gone{opacity:0;pointer-events:none}
+#arrival .eyebrow{font-family:var(--mono);font-size:12px;color:var(--sun);letter-spacing:.12em;text-transform:uppercase}
+#arrival h1{font-family:var(--display);font-weight:400;font-size:clamp(38px,7vw,84px);line-height:1.02;margin:14px 0 18px;max-width:14ch;text-wrap:balance}
+#arrival h1 em{font-style:normal;color:var(--sun)}
+#arrival p{max-width:52ch;color:var(--muted);font-size:17px;line-height:1.55;margin:0 0 28px}
+.btn{font:600 15px var(--body);color:var(--night);background:var(--sun);border:0;border-radius:99px;padding:14px 26px;cursor:pointer;transition:transform .2s,box-shadow .3s;box-shadow:0 0 0 0 rgba(233,185,106,.5)}
+.btn:hover{transform:translateY(-1px);box-shadow:0 0 30px 2px rgba(233,185,106,.35)}
+.btn:focus-visible,.chip:focus-visible,.ghost:focus-visible,input:focus-visible{outline:2px solid var(--water);outline-offset:3px}
+.btn.small{padding:10px 18px;font-size:14px}
+.ghost{font:500 14px var(--body);color:var(--text);background:transparent;border:1px solid var(--line);border-radius:99px;padding:10px 18px;cursor:pointer}
+.ghost:hover{border-color:var(--sun)}
+#arrival .btn{align-self:flex-start}
+
+/* guide panel */
+#guide{position:fixed;z-index:4;top:calc(env(safe-area-inset-top,0px) + 70px);right:16px;bottom:16px;width:var(--panel-w);display:flex;flex-direction:column;background:rgba(15,28,24,.78);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:22px;transform:translateX(calc(100% + 30px));transition:transform 1s cubic-bezier(.2,.8,.2,1)}
+#guide.open{transform:none}
+.g-head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.g-orb{width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff6dc,var(--sun) 45%,rgba(233,185,106,0) 72%);box-shadow:0 0 22px rgba(233,185,106,.6);animation:breathe 3.2s ease-in-out infinite}
+.g-orb.thinking{animation-duration:.8s}
+@keyframes breathe{50%{transform:scale(1.15);box-shadow:0 0 34px rgba(233,185,106,.85)}}
+.g-name{font-family:var(--display);font-size:17px}
+.g-sub{font-size:12px;color:var(--muted)}
+#log{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
+.msg{max-width:92%;line-height:1.55;font-size:15px}
+.msg.ai{color:var(--text)}
+.msg.me{align-self:flex-end;background:var(--night-2);border:1px solid var(--line);padding:9px 14px;border-radius:16px 16px 4px 16px;color:var(--text)}
+.msg b{color:var(--sun);font-weight:600}
+.msg .w{color:var(--water);font-weight:600}
+.dots{display:inline-flex;gap:4px}
+.dots i{width:6px;height:6px;border-radius:50%;background:var(--sun);opacity:.3;animation:dot 1s infinite}
+.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes dot{50%{opacity:1}}
+#actions{padding:14px 18px 18px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:12px}
+#actions:empty{display:none}
+.scale{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;font-size:12px;color:var(--muted)}
+.scale input{accent-color:var(--sun);width:100%;min-width:0}
+.scale-val{font-family:var(--display);font-size:28px;color:var(--sun);text-align:center;font-variant-numeric:tabular-nums;line-height:1}
+.skip{background:none;border:0;color:var(--muted);font:500 14px var(--body);text-decoration:underline;cursor:pointer;padding:8px 4px}
+.card blockquote{margin:6px 0 10px;font-family:var(--display);font-size:17px;line-height:1.4;color:var(--text)}
+.card .profile{font-size:13px;color:var(--muted);line-height:1.5;margin:0 0 6px}
+.label.space{color:var(--text);border-color:var(--sun)}
+.label.vision{font-family:var(--display);font-size:14px;letter-spacing:0;text-transform:none;white-space:normal;width:max-content;max-width:260px;text-align:center;color:var(--text);border-color:var(--sun);background:rgba(12,23,20,.82);line-height:1.35}
+.card .vision{font-size:14px;color:var(--text);font-style:italic;line-height:1.5;margin:0 0 10px}
+.hint{font-size:13px;color:#e3a68f;min-height:0}
+.apply-form{display:flex;flex-direction:column;gap:10px}
+.apply-form input[type=email],.apply-form input[type=tel]{width:100%;font:15px var(--body);color:var(--text);background:var(--night);border:1px solid var(--line);border-radius:99px;padding:11px 16px}
+.apply-form label.check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--muted);line-height:1.45}
+.apply-form label.check input{margin-top:3px;accent-color:var(--sun)}
+.est{margin:10px 0 2px;display:grid;grid-template-columns:1fr auto;gap:6px 14px;font-size:14px}
+.est dt{color:var(--muted)}
+.est dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;color:var(--text)}
+.est .tot{border-top:1px solid var(--line);padding-top:6px;color:var(--sun);font-weight:600}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{font:500 14px var(--body);color:var(--text);background:transparent;border:1px solid var(--line);border-radius:99px;padding:8px 14px;cursor:pointer;transition:all .25s}
+.chip[aria-pressed="true"]{background:rgba(233,185,106,.16);border-color:var(--sun);color:var(--sun)}
+input[type=text]{flex:1;min-width:0;font:15px var(--body);color:var(--text);background:var(--night);border:1px solid var(--line);border-radius:99px;padding:11px 16px}
+input::placeholder{color:#6f786b}
+.journey{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:0}
+.journey li{position:relative;padding:0 0 14px 26px;font-size:14px;color:var(--muted);line-height:1.45}
+.journey li b{display:block;color:var(--text);font-weight:600}
+.journey li::before{content:"";position:absolute;left:4px;top:5px;width:9px;height:9px;border-radius:50%;border:2px solid var(--sun);background:var(--night)}
+.journey li::after{content:"";position:absolute;left:9px;top:18px;bottom:2px;width:1px;background:var(--line)}
+.journey li:last-child::after{display:none}
+.journey li.now::before{background:var(--sun)}
+
+/* map labels */
+.label{position:fixed;z-index:3;pointer-events:none;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text);background:rgba(12,23,20,.7);border:1px solid var(--line);padding:4px 8px;border-radius:6px;transform:translate(-50%,-140%);opacity:0;transition:opacity .8s;white-space:nowrap}
+.label.on{opacity:1}
+.label.place{background:transparent;border-color:transparent;color:var(--muted);transform:translate(-50%,-50%)}
+.label.pin{color:var(--night);background:var(--sun);border-color:var(--sun);font-size:12px}
+#fade{position:fixed;inset:0;z-index:2;background:var(--night);opacity:0;pointer-events:none;transition:opacity .7s}
+#fade.on{opacity:1}
+.label.road{color:#d8c79e}.label.bound{color:var(--sun)}.label.sun{color:var(--sun)}.label.you{color:var(--night);background:var(--sun);border-color:var(--sun)}
+
+.proto{position:fixed;left:20px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);z-index:3;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.04em;max-width:calc(100% - var(--panel-w) - 60px)}
+
+/* dream card */
+#card{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(6,12,10,.72);backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .6s}
+#card.on{opacity:1;pointer-events:auto}
+.card{width:min(440px,100%);max-height:100%;overflow:auto;background:var(--night-2);border:1px solid var(--line);border-radius:24px;padding:14px}
+.card img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:14px}
+.card .c-body{padding:16px 8px 6px}
+.card .c-eye{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--sun)}
+.card h2{font-family:var(--display);font-weight:400;font-size:30px;margin:6px 0 10px;text-wrap:balance}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
+.facts div{border-top:1px solid var(--line);padding-top:8px}
+.facts span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.facts strong{font-family:var(--display);font-weight:400;font-size:20px;font-variant-numeric:tabular-nums}
+.card p{color:var(--muted);font-size:14px;line-height:1.5;margin:8px 0 14px}
+
+@media (max-width:760px){
+  :root{--panel-w:100%}
+  .steps{display:none}
+  #guide{top:auto;left:0;right:0;bottom:0;width:auto;height:48%;border-radius:22px 22px 0 0;border-bottom:0;transform:translateY(105%);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .proto{top:calc(env(safe-area-inset-top,0px) + 48px);bottom:auto;left:20px;max-width:none}
+  #arrival{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 40px)}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:.01s!important}}
+</style>
 </head>
 <body>
 
-  <!-- Top Navigation & Status -->
-  <header class="top-nav">
-    <div class="brand-card">
-      <div class="brand-title">
-        <span>AIGA 3D Engine</span>
-        <span class="brand-badge">MCP Provider</span>
-        <span class="brand-badge" style="background: rgba(63, 185, 80, 0.15); color: #3fb950; border-color: rgba(63, 185, 80, 0.3);">JamotLite</span>
-      </div>
-      <div class="brand-sub">Autonomous AI Village & Spatial Planning Engine • 12 Family Permaculture Node</div>
-    </div>
+<canvas id="scene" aria-label="3D view of the Nusa Dua parcel"></canvas>
 
-    <div class="status-badge">
-      <div class="live-dot" id="liveDot"></div>
-      <div style="font-size: 0.8rem;">
-        <div style="font-weight: 600;" id="wsStatus">Connecting to MCP WS...</div>
-        <div style="font-size: 0.72rem; color: var(--text-muted);" id="clientCount">0 connected</div>
-      </div>
-    </div>
-  </header>
+<header class="top">
+  <div class="brand">AIGA <span>·</span> Village</div>
+  <ol class="steps" id="steps">
+    <li>Arrival</li><li>Meet Asara</li><li>The land</li><li>Your home</li><li>The village</li>
+  </ol>
+</header>
 
-  <!-- 12 Families Quick Selection Bar -->
-  <div class="family-bar" id="familyBar">
-    <!-- Populated dynamically with 12 family pills -->
+<div class="proto">Prices are rough estimates · nothing is saved unless you apply</div>
+
+<section id="arrival">
+  <div class="eyebrow">Nusa Dua, Bali · 5.8 hectares · a village of families</div>
+  <h1>A few families. One land. <em>Designed together.</em></h1>
+  <p>You're about to walk the land with Asara, the AI guide who helps the families plan AIGA Village. She reads the land, listens to what you want, and sketches your place in seconds.</p>
+  <button class="btn" id="enter">Enter the land</button>
+</section>
+
+<aside id="guide" aria-label="Conversation with Asara">
+  <div class="g-head">
+    <div class="g-orb" id="gorb"></div>
+    <div><div class="g-name">Asara</div><div class="g-sub">AIGA Village guide</div></div>
   </div>
+  <div id="log" aria-live="polite"></div>
+  <div id="actions"></div>
+</aside>
 
-  <!-- Cesium 3D Globe Container -->
-  <div id="cesiumContainer"></div>
+<div class="label bound" id="lb-bound">Boundary · 1,031 m</div>
+<div class="label road" id="lb-road">Main road</div>
+<div class="label road" id="lb-lane">North lane</div>
+<div class="label" id="lb-built">Existing structures</div>
+<div class="label sun" id="lb-sun">Sunrise · east</div>
+<div class="label" id="lb-hub">A possible commons</div>
+<div class="label you" id="lb-you">Your place</div>
+<div class="label vision" id="lb-vision"></div>
+<div class="label bound" id="lb-zone">The village · about a quarter of the land</div>
+<div class="label" id="lb-green">Stays green zone</div>
+<div class="label pin" id="mp-pin">AIGA Village · Nusa Dua</div>
+<div class="label place" id="mp-Denpasar">Denpasar</div>
+<div class="label place" id="mp-Ubud">Ubud</div>
+<div class="label place" id="mp-Uluwatu">Uluwatu</div>
+<div class="label place" id="mp-bali" style="font-size:13px;letter-spacing:.4em;color:var(--text)">Bali</div>
+<div id="fade"></div>
 
-  <!-- Floating HUD Sidebar -->
-  <aside class="sidebar-hud">
-    <div>
-      <div class="hud-section-title">Village Spatial Overview</div>
-      <div class="stat-grid">
-        <div class="stat-box">
-          <div class="stat-label">Total Families</div>
-          <div class="stat-val" id="statFamilyCount">12</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-label">Village Area</div>
-          <div class="stat-val" id="statTotalArea">0 m²</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-label">Avg Plot Area</div>
-          <div class="stat-val" id="statAvgArea">0 m²</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-label">Riparian Buffer</div>
-          <div class="stat-val" style="color: #58a6ff;">10m Protected</div>
-        </div>
+<div id="card" role="dialog" aria-modal="true" aria-labelledby="card-title">
+  <div class="card">
+    <img id="card-img" alt="Your plot on the land">
+    <div class="c-body">
+      <div class="c-eye">AIGA Village · Nusa Dua · my dream plot (draft)</div>
+      <h2 id="card-title"></h2>
+      <blockquote id="card-quote"></blockquote>
+      <p class="vision" id="card-vision"></p>
+      <p class="profile" id="card-profile"></p>
+      <div class="row" id="card-wishes"></div>
+      <div class="facts">
+        <div><span>Private land</span><strong id="cf-plot"></strong></div>
+        <div><span>Home</span><strong id="cf-area"></strong></div>
+        <div><span>Rough total</span><strong id="cf-hub"></strong></div>
       </div>
+      <p>This is a first sketch with rough prices, not an allocation or a quote. The final layout is designed and voted on by the founding families. Take a screenshot to share it.</p>
+      <div class="row"><button class="btn small" id="card-close">Back to the village</button><button class="ghost" id="restart">Start again</button></div>
     </div>
+  </div>
+</div>
 
-    <div>
-      <div class="hud-section-title">Selected Plot Inspector</div>
-      <div class="inspector-card" id="inspectorContent">
-        <div style="color: var(--text-muted); font-size: 0.78rem;">Click any family plot or pick from the top bar to inspect spatial constraints.</div>
-      </div>
-    </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+const BALI = {"rings":[[[-142.74,-125.55],[-140.42,-125.8],[-138.82,-126.45],[-131.01,-133.07],[-127.77,-133.75],[-124.27,-131.67],[-119.91,-126.16],[-117.34,-123.92],[-113.84,-122.52],[-111.22,-122.45],[-106.73,-123.65],[-104.34,-123.97],[-102.68,-123.41],[-98.67,-119.52],[-97.01,-118.46],[-95.99,-118.13],[-94.55,-118.01],[-92.12,-118.13],[-90.86,-118.02],[-90.0,-117.59],[-88.04,-115.92],[-83.72,-113.54],[-82.15,-111.88],[-81.38,-109.53],[-81.46,-107.12],[-82.15,-102.45],[-82.47,-101.61],[-83.87,-99.61],[-84.33,-98.29],[-84.35,-97.05],[-84.1,-96.1],[-83.77,-95.3],[-83.58,-94.53],[-83.63,-89.26],[-88.25,-73.32],[-92.52,-51.33],[-92.79,-48.12],[-93.33,-45.59],[-93.41,-44.48],[-93.17,-43.21],[-91.9,-40.71],[-91.71,-35.7],[-91.34,-33.38],[-90.0,-32.41],[-88.65,-33.63],[-88.21,-36.44],[-88.16,-41.39],[-86.23,-39.4],[-85.76,-35.88],[-85.91,-28.63],[-85.16,-26.4],[-83.79,-24.16],[-82.05,-22.45],[-80.19,-21.75],[-77.99,-21.68],[-76.59,-21.34],[-73.82,-19.48],[-67.97,-17.37],[-67.06,-16.1],[-66.41,-14.72],[-65.06,-13.4],[-63.95,-11.64],[-64.05,-8.92],[-67.09,-5.06],[-71.69,-4.79],[-81.34,-8.09],[-83.79,-8.54],[-90.0,-8.09],[-92.41,-8.83],[-92.1,-10.5],[-89.66,-13.38],[-90.4,-17.31],[-94.32,-20.88],[-99.49,-23.16],[-103.99,-23.26],[-108.48,-20.44],[-111.11,-19.43],[-112.26,-20.62],[-113.55,-22.28],[-116.48,-22.0],[-121.34,-20.26],[-122.34,-20.28],[-126.25,-21.0],[-127.19,-21.47],[-128.21,-23.55],[-129.26,-24.02],[-131.42,-23.43],[-133.34,-22.45],[-134.98,-22.24],[-136.3,-24.02],[-136.16,-25.19],[-135.73,-26.72],[-135.65,-28.06],[-136.7,-28.63],[-137.81,-28.38],[-140.07,-27.3],[-141.26,-27.04],[-143.16,-27.36]],[[37.74,-17.15],[40.27,-16.51],[42.03,-13.89],[42.98,-11.34],[44.96,-9.03],[45.89,-5.79],[43.99,-3.84],[42.0,-1.55],[38.91,-2.46],[32.82,-6.68],[30.99,-8.92],[29.43,-9.37],[28.74,-9.89],[29.08,-10.78],[33.0,-15.74],[34.16,-16.71],[36.08,-16.32],[37.74,-17.15]],[[45.33,-58.9],[49.0,-55.61],[53.25,-52.74],[55.79,-49.34],[54.33,-44.48],[53.2,-43.34],[49.66,-40.46],[47.62,-39.27],[44.93,-36.37],[43.76,-35.42],[35.93,-34.81],[34.75,-34.28],[33.98,-31.73],[32.09,-30.18],[17.27,-24.81],[12.71,-21.84],[9.21,-17.97],[6.79,-13.51],[5.16,-11.8],[2.71,-11.11],[0.59,-10.27],[-0.43,-8.22],[-0.19,-5.73],[1.49,-3.57],[2.31,-4.33],[1.81,-4.79],[0.8,-6.58],[2.79,-7.44],[3.4,-5.42],[3.13,-0.17],[2.42,0.99],[0.68,2.06],[-1.32,2.86],[-2.87,3.23],[-5.46,3.38],[-7.98,3.26],[-10.3,2.67],[-12.33,1.37],[-12.41,-0.31],[-10.13,-1.98],[-5.26,-4.33],[-4.0,-5.81],[-2.77,-8.29],[-2.28,-10.94],[-3.31,-13.04],[-3.81,-13.8],[-5.6,-17.61],[-6.42,-18.04],[-7.4,-18.35],[-8.27,-18.73],[-11.41,-21.19],[-12.86,-22.83],[-13.46,-24.43],[-14.34,-26.12],[-16.38,-27.71],[-20.29,-30.12],[-27.93,-37.18],[-30.8,-39.13],[-45.15,-45.99],[-49.63,-46.85],[-62.49,-46.75],[-66.28,-48.09],[-69.61,-50.74],[-72.38,-53.87],[-81.25,-66.67],[-83.51,-77.36],[-83.01,-80.31],[-79.82,-80.93],[-77.26,-80.83],[-75.82,-79.81],[-74.77,-78.28],[-73.41,-76.67],[-71.69,-76.03],[-69.97,-76.51],[-67.06,-78.6],[-65.4,-77.36],[-63.03,-76.76],[-58.74,-76.34],[-56.72,-75.9],[-38.44,-69.47],[-34.56,-70.9],[-24.49,-70.88],[-20.29,-71.74],[-15.82,-74.99],[-7.82,-82.78],[-3.76,-84.71],[-1.53,-84.74],[0.93,-84.25],[3.2,-83.32],[4.94,-82.04],[6.79,-80.94],[14.39,-79.36],[32.5,-71.74],[36.11,-69.31],[39.39,-66.32],[45.33,-58.9]]],"places":{"Denpasar":[1.06,-18.94],"Ubud":[6.1,-34.77],"Uluwatu":[-13.44,0.86]}};
+const PARCEL = {"centroid":[7.1,-29.1],"boundary":[[114.1,103.5],[114.0,94.6],[115.5,75.5],[115.5,75.5],[115.5,75.5],[118.2,58.0],[119.3,45.6],[119.3,45.6],[119.9,40.2],[120.9,34.0],[121.9,28.3],[123.4,20.4],[126.4,7.3],[127.4,1.4],[128.4,-4.1],[128.3,-10.8],[129.6,-18.8],[131.2,-21.4],[133.3,-26.0],[136.4,-31.1],[138.8,-35.4],[140.8,-43.3],[142.6,-55.5],[144.2,-67.7],[145.1,-71.5],[148.5,-82.3],[153.2,-90.5],[152.2,-94.6],[150.2,-99.1],[148.0,-106.7],[145.7,-109.4],[136.8,-113.2],[132.1,-112.8],[123.8,-113.1],[114.8,-113.6],[104.3,-114.7],[87.3,-116.5],[76.8,-118.4],[66.2,-119.8],[54.0,-120.5],[44.1,-122.2],[38.2,-123.8],[34.9,-124.8],[27.3,-128.6],[17.7,-132.4],[14.2,-134.8],[13.9,-136.1],[5.8,-137.6],[-7.3,-139.5],[-10.1,-139.2],[-16.1,-137.7],[-22.4,-139.0],[-27.9,-142.3],[-31.8,-145.1],[-35.5,-148.2],[-38.5,-150.9],[-41.9,-154.1],[-46.1,-158.5],[-48.3,-164.5],[-50.1,-169.3],[-50.7,-180.5],[-57.5,-180.9],[-68.3,-181.5],[-74.7,-181.2],[-82.0,-180.4],[-90.2,-177.6],[-97.5,-174.2],[-102.2,-172.4],[-114.8,-170.2],[-115.1,-164.2],[-117.1,-157.8],[-119.1,-151.3],[-120.7,-145.5],[-122.7,-139.5],[-125.7,-133.0],[-128.4,-127.0],[-132.1,-118.1],[-134.8,-111.1],[-136.6,-102.4],[-138.3,-99.6],[-138.5,-95.9],[-138.6,-89.4],[-139.7,-76.3],[-135.3,-76.6],[-130.8,-76.5],[-126.8,-76.8],[-121.5,-76.6],[-116.4,-76.8],[-111.8,-76.8],[-103.1,-76.5],[-103.6,-71.6],[-104.0,-67.3],[-104.5,-60.7],[-105.1,-55.3],[-105.4,-50.7],[-105.9,-45.7],[-106.3,-41.7],[-106.8,-36.8],[-108.2,-22.2],[-109.9,-7.7],[-111.0,1.5],[-112.7,11.0],[-113.7,15.8],[-114.6,20.7],[-106.5,31.3],[-100.3,38.8],[-97.6,41.2],[-90.5,47.3],[-82.9,54.1],[-77.6,59.0],[-72.7,63.0],[-68.1,66.5],[-63.3,69.9],[-60.5,71.6],[-58.0,73.1],[-54.2,75.1],[-49.3,77.3],[-41.6,80.8],[-37.0,83.2],[-34.0,84.6],[-30.5,86.3],[-28.7,87.2],[-25.0,89.1],[-19.4,91.8],[-13.7,94.5],[-8.3,96.8],[-4.6,97.8],[-1.1,98.5],[7.0,100.2],[14.1,101.4],[22.1,102.9],[27.5,104.0],[36.6,106.0],[57.8,111.9],[64.4,113.9],[75.5,117.6],[84.9,120.9],[90.6,122.9],[95.8,125.1],[99.0,126.6],[100.2,127.8],[100.2,127.8],[101.4,129.3],[101.4,129.3],[106.2,130.6],[107.4,130.4],[112.0,127.7],[112.7,125.4],[113.9,111.8],[114.1,103.5]],"roads":[[[-33.8,-208.6],[-38.6,-200.5],[-44.0,-193.5],[-49.9,-184.5],[-50.7,-180.5]],[[-46.7,-170.3],[-46.8,-183.0],[-41.1,-191.6],[-36.0,-198.3],[-31.1,-197.7],[-30.1,-200.0],[-32.0,-200.6],[-33.4,-202.5],[-31.6,-207.0]],[[-46.7,-170.3],[-46.9,-166.6],[-46.1,-162.3],[-45.3,-159.7],[-43.9,-157.8],[-40.9,-155.1],[-38.3,-153.0],[-35.0,-150.5],[-32.1,-148.1],[-28.8,-145.1],[-17.4,-138.8],[-9.3,-140.9],[-2.5,-140.8],[11.7,-138.4],[17.8,-135.7],[22.2,-133.7],[34.1,-128.3],[44.6,-124.4],[54.7,-122.4],[61.2,-122.2],[68.2,-121.9],[91.6,-117.6],[99.5,-118.1],[101.9,-118.0],[113.9,-115.9],[126.9,-115.4],[134.2,-114.9],[139.7,-114.4],[145.6,-111.9],[150.2,-107.6],[154.1,-94.4],[155.5,-92.1],[157.9,-90.9],[160.0,-90.8]],[[-123.0,19.5],[-137.6,15.9],[-138.8,15.8],[-143.7,14.1],[-147.5,11.4],[-149.1,11.5],[-151.0,12.5],[-153.4,10.0],[-150.1,6.8],[-152.2,-6.3],[-152.5,-15.3],[-153.5,-25.5],[-149.7,-26.1],[-148.8,-18.6],[-147.9,-4.5],[-146.7,3.7],[-145.0,8.0],[-143.3,9.9],[-138.4,11.4],[-120.9,16.4],[-120.2,17.0],[-115.4,21.7],[-113.4,23.4],[-112.2,25.4]],[[-112.2,25.4],[-101.0,38.9],[-84.0,55.3],[-82.1,57.1],[-79.5,59.0],[-75.8,62.0],[-72.1,64.7],[-67.4,67.7],[-64.9,69.8],[-58.8,73.3],[-55.6,75.4],[-49.6,78.4],[-43.9,80.8],[-37.4,83.7],[-28.9,87.6],[-21.8,91.3],[-15.9,94.7],[-11.1,96.5],[-8.8,97.3],[-3.1,98.9],[5.6,100.6],[5.6,100.6],[20.7,103.3],[34.9,106.9],[34.9,106.9],[38.8,108.0],[55.6,113.0],[62.6,115.0],[75.0,118.8],[84.7,121.2],[90.2,123.2],[93.9,124.8],[94.9,125.2],[97.6,126.8],[99.5,128.6],[101.7,132.4],[102.7,135.8],[103.0,141.3],[104.0,161.7],[104.0,161.7],[100.3,160.7],[99.9,152.3],[99.5,141.9],[98.4,137.1],[97.9,135.0],[96.2,131.8],[93.8,129.2],[91.1,127.8],[82.6,124.5],[75.5,122.2],[61.3,118.0],[54.7,116.4],[45.0,113.5],[37.8,111.6],[16.2,106.1],[16.2,106.1],[16.2,106.1],[4.5,103.8],[-1.6,102.9],[-12.0,100.0],[-16.9,97.9],[-23.3,94.0],[-29.8,91.4],[-39.5,86.5],[-44.7,84.1],[-51.6,81.1],[-56.5,78.7],[-61.2,76.1],[-66.8,72.6],[-68.6,74.5],[-71.5,74.4],[-70.6,72.0],[-70.5,70.7],[-70.5,70.4],[-72.7,68.4],[-78.4,64.1],[-80.8,62.3],[-85.0,59.0],[-88.0,56.0],[-100.4,44.0],[-104.9,39.3],[-114.4,27.9],[-117.6,30.0],[-120.4,29.4],[-118.4,26.2],[-117.9,25.3],[-117.7,24.2],[-120.4,21.2],[-120.4,21.2],[-123.0,19.5]]],"structures":[[[74.0,113.3],[73.7,114.4],[75.4,114.8],[75.6,113.7],[74.0,113.3]],[[60.5,104.1],[62.0,99.0],[66.6,100.3],[65.0,105.4],[60.5,104.1]],[[-96.8,-132.2],[-96.3,-135.8],[-92.4,-135.3],[-92.9,-131.6],[-96.8,-132.2]],[[75.5,117.6],[84.9,120.9],[90.6,122.9],[95.8,125.1],[99.0,126.6],[100.2,127.8],[100.8,126.9],[101.9,127.7],[101.4,129.3],[106.2,130.6],[107.4,130.4],[112.0,127.7],[112.7,125.4],[113.9,111.8],[114.1,103.5],[105.3,101.3],[82.1,94.9],[82.1,94.9],[75.5,117.6]]],"marks":[[[82.1,94.9],[84.4,86.8]],[[67.2,81.8],[63.8,93.2]],[[84.4,86.8],[67.2,81.8]],[[40.1,103.6],[58.3,108.0],[59.5,103.0]],[[41.4,98.5],[59.5,103.0]],[[40.1,103.6],[41.4,98.5]],[[63.8,93.2],[81.1,98.2]],[[79.3,103.5],[77.1,102.9],[78.6,97.5]]],"annex":[[-68.2,-181.5],[-57.5,-180.9],[-50.7,-180.5],[-49.9,-184.5],[-44.0,-193.5],[-38.6,-200.5],[-64.8,-202.3],[-68.3,-181.6]],"area":57763,"perimeter":1031};
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = id => document.getElementById(id);
+const canvas = $('scene');
+const ease = t => t<.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;
+const [CX,CZ] = PARCEL.centroid;
+const B = PARCEL.boundary;
+const HUB_R = 22, R0 = 38, SETBACK = 8;
 
-    <div>
-      <div class="hud-section-title">KMZ / KML Terrain & Plot Import</div>
-      <input type="file" id="kmzFileInput" accept=".kmz,.kml" style="display: none;">
-      <button class="btn btn-primary" id="btnUploadKmz" style="width: 100%; margin-bottom: 6px;">
-        📁 Upload KMZ / KML File
-      </button>
-      <div id="dropZoneNotice" style="font-size: 0.72rem; color: var(--text-muted); text-align: center;">
-        or drag & drop .kmz / .kml onto 3D globe
-      </div>
-    </div>
+/* Heights are not in the survey yet: keep the ground almost flat with a gentle texture. */
+const H = (x,z) => 0.5*Math.sin(x*0.031)*Math.cos(z*0.027) + 0.3*Math.sin(x*0.07+z*0.05);
+function inside(x,z,poly){ let c=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const [xi,zi]=poly[i],[xj,zj]=poly[j];
+  if(((zi>z)!==(zj>z)) && (x<(xj-xi)*(z-zi)/(zj-zi)+xi)) c=!c; } return c; }
+function reach(a){ const dx=Math.cos(a),dz=Math.sin(a); let best=1e9;
+  for(let i=0;i<B.length-1;i++){ const [x0,z0]=B[i],[x1,z1]=B[i+1], ex=x1-x0, ez=z1-z0, den=dx*ez-dz*ex; if(Math.abs(den)<1e-9) continue;
+    const t=((x0-CX)*ez-(z0-CZ)*ex)/den, u=((x0-CX)*dz-(z0-CZ)*dx)/den; if(t>0&&u>=0&&u<=1) best=Math.min(best,t); }
+  return best; }
 
-    <div>
-      <div class="hud-section-title">Build on Top • Propose Family Plot</div>
-      <div style="display: flex; gap: 6px; margin-bottom: 8px;">
-        <select id="selectFamily" style="background: var(--bg-surface-hover); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 8px; font-size: 0.8rem; flex: 1;">
-          <option value="1">Family 1</option>
-          <option value="2">Family 2</option>
-          <option value="3">Family 3</option>
-          <option value="4">Family 4</option>
-          <option value="5">Family 5</option>
-          <option value="6">Family 6</option>
-          <option value="7">Family 7</option>
-          <option value="8">Family 8</option>
-          <option value="9">Family 9</option>
-          <option value="10">Family 10</option>
-          <option value="11">Family 11</option>
-          <option value="12">Family 12</option>
-        </select>
-        <button class="btn" id="btnDrawPlot" style="flex: 1;">📍 Place Plot</button>
-      </div>
-    </div>
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene = new THREE.Scene();
+const BG = new THREE.Color('#0c1714');
+scene.background = BG;
+const camera = new THREE.PerspectiveCamera(45,1,1,8000);
 
-    <div>
-      <div class="hud-section-title">Spatial Actions</div>
-      <div class="btn-group">
-        <button class="btn" id="btnRecenter">Recenter</button>
-        <button class="btn btn-primary" id="btnAudit">Run Audit</button>
-      </div>
-    </div>
+/* ---------- Bali overview (units: km, origin = the parcel) ---------- */
+let phase='map';
+const mapScene=new THREE.Scene(); mapScene.background=BG;
+const mapCam=new THREE.PerspectiveCamera(45,1,.05,6000);
+const flat=(o,order)=>{ o.material.depthTest=false; o.material.depthWrite=false; o.renderOrder=order; return o; };
+const sea=flat(new THREE.Mesh(new THREE.PlaneGeometry(1600,1600),new THREE.MeshBasicMaterial({color:0x0d2125})),0); sea.rotation.x=-Math.PI/2; mapScene.add(sea);
+BALI.rings.forEach(r=>{
+  const g=new THREE.ShapeGeometry(new THREE.Shape(r.map(([x,z])=>new THREE.Vector2(x,-z)))); g.rotateX(-Math.PI/2);
+  mapScene.add(flat(new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0x1f382b})),1));
+  mapScene.add(flat(new THREE.Line(new THREE.BufferGeometry().setFromPoints([...r,r[0]].map(([x,z])=>new THREE.Vector3(x,0,z))),new THREE.LineBasicMaterial({color:0xe9b96a,transparent:true,opacity:.55})),2));
+});
+const mc={tx:-8,tz:-22,lr:Math.log(200),pitch:1.38,yaw:0};
+const mapLabels={'mp-pin':new THREE.Vector3(0,0,0),'mp-bali':new THREE.Vector3(-20,0,-40)};
+for(const k in BALI.places){ const [x,z]=BALI.places[k]; mapLabels['mp-'+k]=new THREE.Vector3(x,0,z); }
 
-    <div>
-      <div class="hud-section-title">Live MCP Activity Stream</div>
-      <div class="event-feed" id="eventFeed">
-        <div class="feed-item">Listening for JamotLite spatial tool invocations...</div>
-      </div>
-    </div>
-  </aside>
+/* ---------- ground ---------- */
+const uni = { uSun:{value:new THREE.Vector3(0.5,0.75,-0.2).normalize()}, uFog:{value:BG}, uWarm:{value:0}, uParcel:{value:0}, uC:{value:new THREE.Vector2(CX,CZ)}, uHub:{value:0}, uHubR:{value:22} };
+const tg = new THREE.PlaneGeometry(900,900,220,220);
+tg.rotateX(-Math.PI/2); tg.translate(CX,0,CZ);
+const P = tg.attributes.position, ins = new Float32Array(P.count);
+for(let i=0;i<P.count;i++){ const x=P.getX(i), z=P.getZ(i); P.setY(i,H(x,z)); ins[i]=inside(x,z,B)?1:0; }
+tg.setAttribute('aIn',new THREE.BufferAttribute(ins,1));
+tg.computeVertexNormals();
+scene.add(new THREE.Mesh(tg,new THREE.ShaderMaterial({ uniforms:uni,
+  vertexShader:`attribute float aIn; varying float vIn; varying vec3 vPos; varying vec3 vN;
+    void main(){ vIn=aIn; vPos=(modelMatrix*vec4(position,1.)).xyz; vN=normal; gl_Position=projectionMatrix*viewMatrix*vec4(vPos,1.); }`,
+  fragmentShader:`uniform vec3 uSun; uniform vec3 uFog; uniform float uWarm; uniform float uParcel; uniform vec2 uC; uniform float uHub; uniform float uHubR;
+    varying float vIn; varying vec3 vPos; varying vec3 vN;
+    void main(){
+      float tex=.5+.5*sin(vPos.x*.11+sin(vPos.z*.07)*2.)*sin(vPos.z*.09);
+      vec3 outside=mix(vec3(.10,.16,.12),vec3(.13,.19,.14),tex);
+      vec3 land=mix(vec3(.22,.34,.19),vec3(.31,.41,.22),tex);
+      vec3 base=mix(outside,land,vIn);
+      float h=1.-smoothstep(uHubR-2.,uHubR+1.,length(vPos.xz-uC));
+      base=mix(base,vec3(.58,.49,.33),h*uHub*.85);
+      float diff=max(dot(normalize(vN),uSun),0.);
+      vec3 col=base*(.35+.75*diff);
+      col+=vec3(.18,.11,.02)*uWarm*vIn;
+      col+=vec3(.07,.06,.01)*uParcel*vIn;
+      float d=length(cameraPosition-vPos);
+      col=mix(col,uFog,smoothstep(700.,1500.,d));
+      col=mix(col,uFog,smoothstep(300.,445.,max(abs(vPos.x-uC.x),abs(vPos.z-uC.y))));
+      gl_FragColor=vec4(col,1.);
+    }`})));
+scene.add(new THREE.HemisphereLight(0xfff2d6,0x22352c,.75));
+const dl=new THREE.DirectionalLight(0xffe2b0,.8); dl.position.set(80,120,-30); scene.add(dl);
 
-  <script src="app.js"></script>
+/* ---------- boundary: line + light curtain ---------- */
+const v3 = ([x,z],lift) => new THREE.Vector3(x,H(x,z)+lift,z);
+const bLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(B.map(p=>v3(p,.8))),new THREE.LineBasicMaterial({color:0xe9b96a,transparent:true,opacity:.5}));
+scene.add(bLine);
+const wall=[], wallUv=[];
+for(let i=0;i<B.length-1;i++){ const a=B[i],b=B[i+1], ya=H(...a), yb=H(...b), hgt=4;
+  wall.push(a[0],ya,a[1], b[0],yb,b[1], b[0],yb+hgt,b[1],  a[0],ya,a[1], b[0],yb+hgt,b[1], a[0],ya+hgt,a[1]);
+  wallUv.push(0,0,0,0,0,1, 0,0,0,1,0,1); }
+const wg=new THREE.BufferGeometry(); wg.setAttribute('position',new THREE.Float32BufferAttribute(wall,3)); wg.setAttribute('uv',new THREE.Float32BufferAttribute(wallUv,2));
+const wallU={uO:{value:0}};
+scene.add(new THREE.Mesh(wg,new THREE.ShaderMaterial({uniforms:wallU,transparent:true,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,
+  vertexShader:`varying vec2 vUv; void main(){vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`uniform float uO; varying vec2 vUv; void main(){ gl_FragColor=vec4(vec3(.91,.72,.41),(1.-vUv.y)*.55*uO); }`})));
+
+/* ---------- roads, survey marks, structures ---------- */
+const roadMat=new THREE.LineBasicMaterial({color:0xd8c79e,transparent:true,opacity:.28});
+PARCEL.roads.forEach(r=>scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(r.map(p=>v3(p,.6))),roadMat)));
+const markMat=new THREE.LineBasicMaterial({color:0xece6d6,transparent:true,opacity:.18});
+PARCEL.marks.concat([PARCEL.annex]).forEach(r=>scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(r.map(p=>v3(p,.6))),markMat)));
+const builtMat=new THREE.MeshLambertMaterial({color:0xd9ccb0,transparent:true,opacity:.35});
+PARCEL.structures.forEach(s=>{ const sh=new THREE.Shape(s.map(([x,z])=>new THREE.Vector2(x,-z)));
+  const g=new THREE.ExtrudeGeometry(sh,{depth:3.5,bevelEnabled:false}); g.rotateX(-Math.PI/2); scene.add(new THREE.Mesh(g,builtMat)); });
+
+/* ---------- commons ---------- */
+const hubRing=new THREE.Mesh(new THREE.RingGeometry(HUB_R-1.2,HUB_R,96),new THREE.MeshBasicMaterial({color:0xe9b96a,transparent:true,opacity:0,side:THREE.DoubleSide}));
+hubRing.rotation.x=-Math.PI/2; hubRing.position.set(CX,1.2,CZ); scene.add(hubRing);
+
+/* ---------- sky ---------- */
+const sg=new THREE.BufferGeometry(), sp=[];
+for(let i=0;i<1400;i++){const u=Math.random()*Math.PI*2,v=Math.acos(Math.random()*.9),R=3500;sp.push(CX+R*Math.sin(v)*Math.cos(u),R*Math.cos(v),CZ+R*Math.sin(v)*Math.sin(u));}
+sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));
+const stars=new THREE.Points(sg,new THREE.PointsMaterial({color:0xece6d6,size:2.2,sizeAttenuation:false,transparent:true,opacity:.8}));
+scene.add(stars);
+function glowTex(inner,outer){const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');
+  const gr=g.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,inner);gr.addColorStop(.25,outer);gr.addColorStop(1,'rgba(233,185,106,0)');
+  g.fillStyle=gr;g.fillRect(0,0,128,128);return new THREE.CanvasTexture(c);}
+const orb=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('#fff8e6','rgba(233,185,106,.9)'),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,opacity:0}));
+orb.scale.set(16,16,1); orb.position.set(CX,-10,CZ); scene.add(orb);
+const orbTarget=new THREE.Vector3(CX,20,CZ); let thinking=false;
+const pinGroup=new THREE.Group(); mapScene.add(pinGroup);
+const glow=flat(new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('rgba(255,240,205,.9)','rgba(233,185,106,.35)'),transparent:true})),3);
+const dot=flat(new THREE.Mesh(new THREE.CircleGeometry(1,40),new THREE.MeshBasicMaterial({color:0xfff3d6})),5);
+const dotRim=flat(new THREE.Mesh(new THREE.RingGeometry(1,1.45,40),new THREE.MeshBasicMaterial({color:0xe9b96a})),5);
+dot.rotation.x=dotRim.rotation.x=-Math.PI/2;
+const pulses=[0,1].map(()=>{ const m=flat(new THREE.Mesh(new THREE.RingGeometry(.92,1,64),new THREE.MeshBasicMaterial({color:0xe9b96a,transparent:true})),4); m.rotation.x=-Math.PI/2; return m; });
+pinGroup.add(glow,dot,dotRim,...pulses);
+
+/* At 8.8° south the sun passes close to overhead, a little north for half the year. */
+const arcPts=[]; for(let i=0;i<=60;i++){const a=Math.PI*i/60; arcPts.push(new THREE.Vector3(CX+300*Math.cos(a),15+270*Math.sin(a),CZ-35*Math.sin(a)));}
+const arc=new THREE.Line(new THREE.BufferGeometry().setFromPoints(arcPts),new THREE.LineDashedMaterial({color:0xe9b96a,dashSize:7,gapSize:7,transparent:true,opacity:0}));
+arc.computeLineDistances(); scene.add(arc);
+const sun=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('#fffbe8','rgba(255,200,110,.95)'),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,opacity:0}));
+sun.scale.set(50,50,1); scene.add(sun); let sunT=0, sunRun=false;
+
+/* ---------- plots: 12 sectors from the commons out to the boundary, minus an 8 m setback ---------- */
+const FAM=['#e9b96a','#93c98d','#7cc6de','#d99a83','#b9a4d9','#c9c06a','#7fb3a2','#e0a4b8','#8fa8d9','#c7b08a','#a6d3c3','#d6c7a1'];
+const roadPts=PARCEL.roads.flat();
+const PLOTS=[...Array(12).keys()].map(i=>{
+  const a0=(i*30+1.2)*Math.PI/180, a1=((i+1)*30-1.2)*Math.PI/180, am=(a0+a1)/2, nA=18;
+  const outer=[]; for(let k=0;k<=nA;k++){ const a=a0+(a1-a0)*k/nA; outer.push([a,Math.max(R0+10,reach(a)-SETBACK)]); }
+  const ring=[...outer.map(([a,r])=>[CX+r*Math.cos(a),CZ+r*Math.sin(a)]), ...outer.slice().reverse().map(([a])=>[CX+R0*Math.cos(a),CZ+R0*Math.sin(a)])];
+  let A=0; for(let k=0;k<ring.length;k++){ const [x0,z0]=ring[k],[x1,z1]=ring[(k+1)%ring.length]; A+=x0*z1-x1*z0; }
+  const rm=(R0+outer[nA/2][1])/2, cen=[CX+rm*Math.cos(am),CZ+rm*Math.sin(am)];
+  const road=Math.min(...roadPts.map(([x,z])=>Math.hypot(x-cen[0],z-cen[1])));
+  return {i,a0,a1,am,outer,ring,area:Math.round(Math.abs(A)/2),cen,rm,road:Math.round(road),hub:Math.round(rm-HUB_R)};
+});
+function plotMesh(pl,color){
+  const nR=6, nA=pl.outer.length-1, pos=[], idx=[];
+  for(let r=0;r<=nR;r++) for(let k=0;k<=nA;k++){ const [a,ro]=pl.outer[k], rr=R0+(ro-R0)*r/nR, x=CX+rr*Math.cos(a), z=CZ+rr*Math.sin(a); pos.push(x,H(x,z)+.4,z); }
+  for(let r=0;r<nR;r++) for(let k=0;k<nA;k++){ const p=r*(nA+1)+k; idx.push(p,p+nA+1,p+1,p+1,p+nA+1,p+nA+2); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx);
+  const fill=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide}));
+  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([...pl.ring,pl.ring[0]].map(p=>v3(p,.7))),new THREE.LineBasicMaterial({color,transparent:true,opacity:0}));
+  const grp=new THREE.Group(); grp.add(fill,line); grp.position.y=-4; scene.add(grp); return {grp,fill,line};
+}
+function house(x,z,s,roofCol,bodyCol=0xe8dcc0,storeys=1){ const g=new THREE.Group(), bh=1.1*storeys;
+  const body=new THREE.Mesh(new THREE.BoxGeometry(3.4*s,2.2*s*bh,3.4*s),new THREE.MeshLambertMaterial({color:bodyCol})); body.position.y=1.1*s*bh;
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(3.2*s,1.9*s,4),new THREE.MeshLambertMaterial({color:roofCol})); roof.position.y=2.2*s*bh+.95*s; roof.rotation.y=Math.PI/4;
+  g.add(body,roof); g.position.set(x,H(x,z),z); g.scale.setScalar(.001); scene.add(g); return g; }
+function tree(x,z,s){ const g=new THREE.Group();
+  const c=new THREE.Mesh(new THREE.ConeGeometry(1.3*s,3.6*s,7),new THREE.MeshLambertMaterial({color:0x5f9a5c})); c.position.y=2.4*s;
+  const t=new THREE.Mesh(new THREE.CylinderGeometry(.18*s,.22*s,1*s,5),new THREE.MeshLambertMaterial({color:0x6b4f35})); t.position.y=.5*s;
+  g.add(c,t); g.position.set(x,H(x,z),z); g.scale.setScalar(.001); scene.add(g); return g; }
+const grow=(o,d)=>{ tween(o.scale,'x',1,d); tween(o.scale,'y',1,d); tween(o.scale,'z',1,d); };
+
+/* ---------- tweens & camera ---------- */
+const tweens=[];
+function tween(obj,key,to,dur){ return new Promise(res=>{ if(RM) dur=Math.min(dur,150); tweens.push({obj,key,from:obj[key],to,t0:performance.now(),dur,res}); }); }
+const cam={tx:CX,ty:0,tz:CZ,r:2800,pitch:1.42,yaw:0};
+function camTo(o,dur=3200){ return Promise.all(Object.keys(o).map(k=>tween(cam,k,o[k],dur))); }
+let idleSpin=0.00004, drag=null;
+canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);});
+canvas.addEventListener('pointermove',e=>{ if(!drag)return; cam.yaw-=(e.clientX-drag.x)*.005; cam.pitch=Math.min(1.5,Math.max(.18,cam.pitch+(e.clientY-drag.y)*.004)); drag={x:e.clientX,y:e.clientY}; });
+canvas.addEventListener('pointerup',()=>drag=null);
+canvas.addEventListener('wheel',e=>{cam.r=Math.min(900,Math.max(80,cam.r*(1+e.deltaY*.001)));},{passive:true});
+
+/* ---------- labels ---------- */
+const north=B.reduce((m,p)=>p[1]<m[1]?p:m,B[0]);
+const mainRoad=PARCEL.roads[4][Math.floor(PARCEL.roads[4].length/2)];
+const lane=PARCEL.roads[2][Math.floor(PARCEL.roads[2].length/2)];
+const built=PARCEL.structures[3][0];
+const labels={ 'lb-bound':v3(north,6), 'lb-road':v3(mainRoad,4), 'lb-lane':v3(lane,4), 'lb-built':v3(built,8), 'lb-hub':new THREE.Vector3(CX,6,CZ), 'lb-sun':arcPts[4], 'lb-you':null };
+const showLabel=(id,on)=>$(id).classList.toggle('on',on);
+
+function resize(){
+  const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); camera.aspect=w/h; mapCam.aspect=w/h; mapCam.updateProjectionMatrix();
+  const g=$('guide'), open=g.classList.contains('open');
+  if(open && w>760){ const pw=g.offsetWidth+16; camera.setViewOffset(w+pw,h,pw,0,w,h); }
+  else if(open){ const ph=g.offsetHeight; camera.setViewOffset(w,h+ph,0,ph,w,h); }
+  else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize',resize); resize();
+
+let last=performance.now();
+function frame(now){
+  const dt=now-last; last=now;
+  for(let i=tweens.length-1;i>=0;i--){const t=tweens[i],p=Math.min(1,(now-t.t0)/t.dur);t.obj[t.key]=t.from+(t.to-t.from)*ease(p);if(p>=1){tweens.splice(i,1);t.res();}}
+  const w=innerWidth,h=innerHeight;
+  const place=(p,c,id)=>{ const v=p.clone().project(c), el=$(id); el.style.left=((v.x+1)/2*w)+'px'; el.style.top=((1-v.y)/2*h)+'px'; };
+  if(phase==='map'){
+        const r=Math.exp(mc.lr), hzm=r*Math.cos(mc.pitch);
+    mapCam.position.set(mc.tx+hzm*Math.sin(mc.yaw),r*Math.sin(mc.pitch),mc.tz+hzm*Math.cos(mc.yaw)); mapCam.lookAt(mc.tx,0,mc.tz);
+    const u=r*.0045; dot.scale.setScalar(u); dotRim.scale.setScalar(u); glow.scale.set(u*7,u*7,1);
+    pulses.forEach((m,k)=>{ const t=((now/2200)+k*.5)%1; m.scale.setScalar(u*(1.5+t*7)); m.material.opacity=.85*(1-t); });
+    renderer.render(mapScene,mapCam);
+    for(const id in mapLabels) place(mapLabels[id],mapCam,id);
+    requestAnimationFrame(frame); return;
+  }
+  if(!drag && !RM) cam.yaw+=idleSpin*dt;
+  const hz=cam.r*Math.cos(cam.pitch);
+  camera.position.set(cam.tx+hz*Math.sin(cam.yaw),cam.ty+cam.r*Math.sin(cam.pitch),cam.tz+hz*Math.cos(cam.yaw));
+  camera.lookAt(cam.tx,cam.ty,cam.tz);
+  orb.position.lerp(orbTarget,Math.min(1,dt*.0022));
+  const pulse=thinking?1+.25*Math.sin(now/120):1+.08*Math.sin(now/600);
+  orb.scale.set(16*pulse,16*pulse,1);
+  if(sunRun){ sunT=(sunT+dt/9000)%1; const p=arcPts[Math.round(sunT*60)]; sun.position.copy(p); uni.uSun.value.set(p.x-CX,p.y,p.z-CZ).normalize(); }
+  renderer.render(scene,camera);
+  for(const id in labels){ if(labels[id]) place(labels[id],camera,id); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+setTimeout(()=>{ for(const id in mapLabels) showLabel(id,true); },RM?0:900);
+Promise.all([tween(mc,'lr',Math.log(70),RM?0:7000),tween(mc,'tx',-3,RM?0:7000),tween(mc,'tz',7,RM?0:7000)]);
+async function dive(){
+  ['mp-bali','mp-Denpasar','mp-Ubud','mp-Uluwatu'].forEach(id=>showLabel(id,false));
+  await Promise.all([tween(mc,'tx',0,4200),tween(mc,'tz',0,4200),tween(mc,'lr',Math.log(2.6),4200),tween(mc,'pitch',1.42,4200)]);
+  showLabel('mp-pin',false); $('fade').classList.add('on'); await wait(750);
+  phase='land'; $('fade').classList.remove('on');
+}
+
+/* ---------- conversation ---------- */
+const log=$('log'), actions=$('actions');
+const wait=ms=>new Promise(r=>setTimeout(r,RM?0:ms));
+function stepTo(n){ [...$('steps').children].forEach((li,i)=>{li.className=i<n?'done':i===n?'on':'';}); }
+stepTo(0);
+async function say(html,pause=500){
+  const m=document.createElement('div'); m.className='msg ai'; log.appendChild(m);
+  m.innerHTML='<span class="dots"><i></i><i></i><i></i></span>'; $('gorb').classList.add('thinking');
+  log.scrollTop=log.scrollHeight;
+  await wait(650); $('gorb').classList.remove('thinking');
+  const tmp=document.createElement('div'); tmp.innerHTML=html; const plain=tmp.textContent;
+  if(!RM){ m.textContent=''; for(let i=0;i<=plain.length;i+=2){ m.textContent=plain.slice(0,i); log.scrollTop=log.scrollHeight; await new Promise(r=>setTimeout(r,12)); } }
+  m.innerHTML=html; log.scrollTop=log.scrollHeight; await wait(pause); return m;
+}
+function me(text){ const m=document.createElement('div'); m.className='msg me'; m.textContent=text; log.appendChild(m); log.scrollTop=log.scrollHeight; }
+function ask(build){ return new Promise(res=>{ actions.innerHTML=''; build(actions,v=>{actions.innerHTML='';res(v);}); }); }
+function button(label,cls='btn small'){ const b=document.createElement('button'); b.className=cls; b.textContent=label; return b; }
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=n=>n.toLocaleString('en-US');
+
+let name='friend', wishes=new Set(), choice=0;
+let aiOn=false, aiAvailable=false, applyOpen=false;
+fetch('/api/onboarding/status').then(r=>r.json()).then(st=>{ aiAvailable=!!st.asara; applyOpen=!!st.applications; }).catch(()=>{});
+const applicantId=(crypto.randomUUID?crypto.randomUUID():'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
+async function askAsara(moment,text,extra={}){
+  if(!aiOn) return null;
+  thinking=true; $('gorb').classList.add('thinking');
+  try{
+    const r=await fetch('/api/asara',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({moment,text:text||'',context:{name,kids:profile.kids,ages:profile.ages,belief:profile.belief,vision:profile.vision,...extra}}),
+      signal:AbortSignal.timeout?AbortSignal.timeout(10000):undefined});
+    if(!r.ok) return null; const d=await r.json(); return d&&d.reply?d:null;
+  }catch{ return null; }
+  finally{ thinking=false; $('gorb').classList.remove('thinking'); }
+}
+const profile={privacy:5,spaces:[]};
+function askText(placeholder,{optional=false,cta='Continue'}={}){ return ask((box,done)=>{
+  const row=document.createElement('form'); row.className='row';
+  const inp=document.createElement('input'); inp.type='text'; inp.id='q-'+Math.random().toString(36).slice(2,8); inp.placeholder=placeholder; inp.setAttribute('aria-label',placeholder); inp.maxLength=160;
+  row.append(inp,button(cta)); box.append(row);
+  if(optional){ const sk=button('Skip','skip'); sk.type='button'; sk.onclick=()=>{me('Skip');done('');}; row.append(sk); }
+  setTimeout(()=>inp.focus(),50);
+  row.addEventListener('submit',e=>{e.preventDefault(); const v=inp.value.trim(); if(!v&&!optional){inp.focus();return;} me(v||'Skip'); done(v);});
+}); }
+function askChoice(opts){ return ask((box,done)=>{ const row=document.createElement('div'); row.className='row';
+  opts.forEach(o=>{ const c=button(o,'chip'); c.type='button'; c.onclick=()=>{me(o);done(o);}; row.append(c); }); box.append(row); }); }
+function askMulti(opts,cta){ return ask((box,done)=>{ const row=document.createElement('div'), picked=new Set(); row.className='row';
+  Object.entries(opts).forEach(([k,v])=>{ const c=button(v,'chip'); c.type='button'; c.setAttribute('aria-pressed','false');
+    c.onclick=()=>{ const on=c.getAttribute('aria-pressed')!=='true'; c.setAttribute('aria-pressed',on); on?picked.add(k):picked.delete(k); }; row.append(c); });
+  const go=button(cta); go.onclick=()=>{ me(picked.size?[...picked].map(k=>opts[k]).join(', '):'Nothing in particular'); done([...picked]); };
+  box.append(row,go); }); }
+function askScale(lo,hi,start=5){ return ask((box,done)=>{
+  const wrap=document.createElement('div'); wrap.className='scale';
+  const val=document.createElement('div'); val.className='scale-val'; val.textContent=start;
+  const r=document.createElement('input'); r.type='range'; r.min=1; r.max=10; r.value=start; r.id='s-'+Math.random().toString(36).slice(2,8); r.setAttribute('aria-label',`${lo} to ${hi}`);
+  r.oninput=()=>val.textContent=r.value;
+  const a=document.createElement('span'); a.textContent=lo; const b=document.createElement('span'); b.textContent=hi;
+  wrap.append(a,r,b); const go=button('Continue'); go.onclick=()=>{ me(`${r.value} / 10`); done(+r.value); };
+  box.append(val,wrap,go); }); }
+const SPACES={table:'A big table for everyone',kitchen:'Shared kitchen',studio:'Podcast & recording studio',gym:'Gym',yoga:'Yoga shala',cowork:'Co-working space',kids:"Kids' learning space",workshop:'Maker workshop',pool:'Swimming pool',sauna:'Sauna & ice bath'};
+const SPACE_SHORT={table:'The big table',kitchen:'Kitchen',studio:'Studio',gym:'Gym',yoga:'Yoga shala',cowork:'Co-working',kids:'Kids',workshop:'Workshop',pool:'Pool',sauna:'Sauna'};
+const WISH={morning:'Morning sun',quiet:'A quiet corner',access:'Easy road access',garden:'Room for a food garden',commons:'Close to the commons'};
+const HA=(PARCEL.area/10000).toFixed(1);
+/* Village economics (rough): the families lease about 27.5% of the parcel. The green-zone rule allows building on 19% of the
+   whole parcel, and those rights are used inside the village area. A home's private land is twice its footprint.
+   The build price per m² includes each family's share of building the commons. */
+const LAND_PER_M2=800, BUILD_PER_M2=1600, COVER=0.19, LEASED_SHARE=0.275, MAX_FOOT=150, MAX_FLOOR=300;
+const VILLAGE_BUILDABLE=Math.round(PARCEL.area*COVER), VILLAGE_AREA=Math.round(PARCEL.area*LEASED_SHARE), VZ=Math.sqrt(VILLAGE_AREA/Math.PI);
+function plan(foot,floor){ foot=Math.round(foot); floor=Math.round(floor); const land=foot*2;
+  return {foot,floor,storeys:floor>foot+1?2:1,land,landCost:land*LAND_PER_M2,build:floor*BUILD_PER_M2,total:land*LAND_PER_M2+floor*BUILD_PER_M2}; }
+const HOME_TYPES={compact:{label:'Compact, about 100 m²',plan:()=>plan(100,100)},one:{label:'One storey, about 150 m²',plan:()=>plan(150,150)},two:{label:'Two storeys, about 300 m²',plan:()=>plan(150,300)},open:{label:'Not sure yet',plan:()=>null}};
+function planForBudget(b){ const single=MAX_FOOT*(2*LAND_PER_M2+BUILD_PER_M2);
+  if(b<=single){ const f=b/(2*LAND_PER_M2+BUILD_PER_M2); return plan(f,f); }
+  return plan(MAX_FOOT,Math.min(MAX_FLOOR,MAX_FOOT+(b-single)/BUILD_PER_M2)); }
+function homeSpots(n,avoid){ const c=[];
+  [42,55,66].forEach((r,ri)=>{ const k=Math.floor(2*Math.PI*r/24); for(let i=0;i<k;i++){ const a=i*2*Math.PI/k+ri*.21, x=CX+r*Math.cos(a), z=CZ+r*Math.sin(a);
+    if(avoid&&Math.hypot(x-avoid[0],z-avoid[1])<26) continue; c.push([x,z,a]); } });
+  if(n>=c.length) return c; const out=[]; for(let i=0;i<n;i++) out.push(c[Math.floor(i*c.length/n)]); return out; }
+function rectPlot(x0,z0,side,ang,color){ const n=6,pos=[],idx=[],ca=Math.cos(ang),sa=Math.sin(ang),h=side/2;
+  const Pt=(u,v)=>[x0+u*ca-v*sa,z0+u*sa+v*ca];
+  for(let i=0;i<=n;i++)for(let j=0;j<=n;j++){ const [x,z]=Pt(-h+side*i/n,-h+side*j/n); pos.push(x,H(x,z)+.4,z); }
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){ const p=i*(n+1)+j; idx.push(p,p+n+1,p+1,p+1,p+n+1,p+n+2); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx);
+  const fill=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide}));
+  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([[-h,-h],[h,-h],[h,h],[-h,h],[-h,-h]].map(([u,v])=>v3(Pt(u,v),.7))),new THREE.LineBasicMaterial({color,transparent:true,opacity:0}));
+  const grp=new THREE.Group(); grp.add(fill,line); grp.position.y=-4; scene.add(grp); return {grp,fill,line}; }
+function parseBudget(t){ const m=t.toLowerCase().replace(/usd|\$|,|\s/g,'').match(/^(\d+(?:\.\d+)?)(k|m)?$/); if(!m) return 0;
+  const v=parseFloat(m[1])*(m[2]==='k'?1e3:m[2]==='m'?1e6:1); return v>=1000?Math.round(v):0; }
+function trim(p,target){ let lo=.03,hi=1,f=1; const da=(p.a1-p.a0)/(p.outer.length-1);
+  const areaAt=f=>p.outer.slice(0,-1).reduce((s,[,ro],k)=>{ const r=R0+f*((ro+p.outer[k+1][1])/2-R0); return s+.5*(r*r-R0*R0)*da; },0);
+  for(let n=0;n<30;n++){ f=(lo+hi)/2; areaAt(f)<target?lo=f:hi=f; }
+  const outer=p.outer.map(([a,ro])=>[a,R0+f*(ro-R0)]);
+  const ring=[...outer.map(([a,r])=>[CX+r*Math.cos(a),CZ+r*Math.sin(a)]), ...outer.slice().reverse().map(([a])=>[CX+R0*Math.cos(a),CZ+R0*Math.sin(a)])];
+  const rm=(R0+outer[(outer.length-1)/2][1])/2, cen=[CX+rm*Math.cos(p.am),CZ+rm*Math.sin(p.am)];
+  const road=Math.round(Math.min(...roadPts.map(([x,z])=>Math.hypot(x-cen[0],z-cen[1]))));
+  return {...p,outer,ring,area:Math.round(areaAt(f)),cen,rm,road,hub:Math.round(rm-HUB_R)}; }
+
+$('enter').addEventListener('click',run,{once:true});
+
+const MATERIALS={bamboo:{label:'Bamboo',body:0xd8c48f,roof:0x8a6a3a},stone:{label:'Local stone',body:0xb9b2a3,roof:0x6f6a60},earth:{label:'Rammed earth',body:0xc79a72,roof:0x8e5a3c},timber:{label:'Timber',body:0xb88a5c,roof:0x5c4a3a},open:{label:'Not sure yet',body:0xe8dcc0,roof:0xc9894f}};
+function askBudget(){ return ask((box,done)=>{
+  const chips=document.createElement('div'); chips.className='row';
+  [250000,480000,720000,1000000].forEach(v=>{ const c=button('$'+fmt(v),'chip'); c.type='button'; c.onclick=()=>{me('$'+fmt(v)); done(v);}; chips.append(c); });
+  const row=document.createElement('form'); row.className='row';
+  const inp=document.createElement('input'); inp.type='text'; inp.id='budget-input'; inp.inputMode='decimal'; inp.placeholder='Or type an amount in USD, e.g. 550k'; inp.setAttribute('aria-label','Budget in US dollars');
+  const err=document.createElement('div'); err.className='hint'; err.setAttribute('role','alert');
+  row.append(inp,button('Estimate')); box.append(chips,row,err);
+  row.addEventListener('submit',e=>{e.preventDefault(); const v=parseBudget(inp.value); if(!v){ err.textContent='Enter an amount in US dollars, like 250000 or 250k.'; return; } me('$'+fmt(v)); done(v); });
+}); }
+const removeAll=objs=>objs.forEach(o=>o&&scene.remove(o));
+const THEMES=[
+  [/nature|tree|forest|green|garden|outdoor|outside|barefoot|jungle|plant|animal/,'nature close enough to touch'],
+  [/free|roam|explore|independ|wander|bike|adventure/,'children free to roam and explore'],
+  [/communit|together|neighbo|share|tribe|friends|belong|big family/,'a real community around them'],
+  [/school|learn|educat|teach|curious|skill|wisdom/,'learning that happens everywhere, not only in classrooms'],
+  [/food|cook|eat|farm|grow|organic|kitchen|harvest/,'real food, grown close by'],
+  [/sea|ocean|beach|surf|swim|water/,'the sea close by'],
+  [/art|music|danc|paint|play|creativ|craft/,'art and play woven into everyday life'],
+  [/slow|calm|peace|quiet|simple|screen|presence|present/,'a slower, simpler rhythm'],
+  [/safe|trust|secure|protect/,'a place where they are safe and known'],
+  [/spirit|soul|value|kind|respect|love|conscious|gratitude|honest/,'values that are lived every day'],
+];
+const heard=t=>{ const l=t.toLowerCase(); return THEMES.filter(([re])=>re.test(l)).map(([,v])=>v).slice(0,3); };
+const listJoin=a=>a.length<2?a.join(''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];
+const short=(t,n)=>t.length>n?t.slice(0,n).replace(/\s+\S*$/,'')+'…':t;
+
+async function run(){
+  $('arrival').classList.add('gone'); await dive(); tween(stars.material,'opacity',0,2500);
+  stepTo(1); idleSpin=0.00003;
+  await camTo({r:430,pitch:.8,yaw:.55},RM?0:3600);
+  $('guide').classList.add('open'); setTimeout(resize,1000);
+  orb.material.opacity=1; orbTarget.set(CX,24,CZ);
+
+  /* ---------- 1. Meet: the blank page, then the person ---------- */
+  await say("Hello, I'm <b>Asara</b>, the guide for <b>AIGA Village</b>.");
+  await say("This village doesn't exist yet. It's a <b>blank page</b>, and today you hold the pen. Everything you tell me, I'll draw on the land in front of you.",700);
+  await say("Before we start: I'm an AI guide. To personalise our conversation, what you write to me is processed by an AI service. Nothing is saved unless you choose to apply at the end.");
+  const c0=await askChoice(['Sounds good','Keep it simple, no AI']);
+  aiOn=c0==='Sounds good'&&aiAvailable;
+  await say(c0==='Sounds good'?"Thank you. What should I call you?":"Of course. I'll keep to my script, and nothing leaves your device. What should I call you?");
+  name=await askText('Your first name',{cta:'Continue'});
+  name=name.slice(0,30)||'friend';
+  const N=esc(name);
+  await say(`Welcome, <b>${N}</b>. A village starts with its people, so let's start with you. In one sentence: who are you, and what do you believe in?`);
+  profile.belief=await askText('e.g. A teacher who believes kids should grow up barefoot');
+  const aiB=await askAsara('belief',profile.belief);
+  await say(aiB?esc(aiB.reply):`Thank you. That tells me more than any form could.`,300);
+  await say(`Just for fun: is there a line from a film that feels like you?`);
+  profile.film=await askText('A quote, or just the film',{optional:true});
+  if(profile.film){ const aiF=await askAsara('film',profile.film); await say(aiF?esc(aiF.reply):`Good choice.`,200); }
+  await say(`And who would come with you? Do you have children?`);
+  profile.kids=await askChoice(['No children','1','2','3','4 or more']);
+  if(profile.kids!=='No children'){
+    await say(`How old are they?`);
+    profile.ages=await askText('e.g. 4 and 7');
+    await say(`I'll keep them in mind as we go: safe paths, shade, places to roam. Families with children are a big part of this vision.`,400);
+  } else await say(`Got it.`,200);
+
+  const kids=profile.kids!=='No children';
+  await say(kids?`Before I show you anything, I'd love to hear your vision. Imagine the ideal village to raise your children. What does it look like? What does a day feel like there?`
+               :`Before I show you anything, I'd love to hear your vision. Imagine your ideal village. What does it look like? What does a day feel like there?`);
+  profile.vision=await askText('Take your time. There are no wrong answers',{cta:'Share'});
+  const th=heard(profile.vision);
+  await say(`“${esc(short(profile.vision,140))}”`,300);
+  const aiV=await askAsara('vision',profile.vision);
+  await say(aiV?esc(aiV.reply):(th.length?`I hear ${listJoin(th)}. That's exactly the kind of village this blank page is for.`:`Thank you for sharing that. I've kept your words exactly as you wrote them.`),500);
+  if(aiV&&aiV.followUp){
+    profile.visionFollowUpQuestion=aiV.followUp;
+    await say(esc(aiV.followUp));
+    profile.visionFollowUp=await askText('Your answer',{optional:true});
+    if(profile.visionFollowUp){ const aiA=await askAsara('vision_followup',profile.visionFollowUp,{followUpQuestion:aiV.followUp}); await say(aiA?esc(aiA.reply):`Thank you. I'll remember that.`,300); }
+  }
+  await say(kids?`And one thing from your own childhood that you'd want your children to have too?`:`And what's missing from the place you live now?`);
+  profile.wish=await askText(kids?'e.g. Climbing trees until sunset':'e.g. Neighbours who actually know my name',{optional:true});
+  if(profile.wish){ const th2=heard(profile.wish).filter(x=>!th.includes(x)); const aiC=await askAsara('childhood',profile.wish);
+    await say(aiC?esc(aiC.reply):(th2.length?`${th2[0][0].toUpperCase()+th2[0].slice(1)}. I'll remember that.`:`I'll remember that. It's often the small things that make a place home.`),400); }
+  await say(`Let me show you where all of this could happen.`,300);
+
+  /* ---------- 2. The land, shaped by their answers ---------- */
+  stepTo(2);
+  camTo({tx:CX,tz:CZ,r:470,pitch:1.25,yaw:.2},3200); orbTarget.set(north[0],26,north[1]);
+  tween(wallU.uO,'value',1,2200); tween(bLine.material,'opacity',1,2000); tween(uni.uParcel,'value',1,2000); showLabel('lb-bound',true);
+  tween(roadMat,'opacity',.8,1800); tween(builtMat,'opacity',.9,1800);
+  await say(`Here's the land, in Nusa Dua: <b>${HA} hectares</b> inside a ${fmt(PARCEL.perimeter)}-metre boundary, with the main road along the south-west side.`,700);
+  showLabel('lb-bound',false); tween(wallU.uO,'value',.25,1500);
+  const zone=new THREE.Mesh(new THREE.RingGeometry(VZ-.7,VZ,160),new THREE.MeshBasicMaterial({color:0xe9b96a,transparent:true,opacity:0,side:THREE.DoubleSide}));
+  zone.rotation.x=-Math.PI/2; zone.position.set(CX,1.4,CZ); scene.add(zone); tween(zone.material,'opacity',.8,1800);
+  let ga=0; for(let k=0;k<36;k++){ const a=k*Math.PI/18; if(reach(a)>reach(ga)) ga=a; }
+  labels['lb-zone']=new THREE.Vector3(CX,4,CZ-VZ); labels['lb-green']=new THREE.Vector3(CX+(VZ+40)*Math.cos(ga),3,CZ+(VZ+40)*Math.sin(ga));
+  showLabel('lb-zone',true); showLabel('lb-green',true);
+  camTo({tx:CX,tz:CZ,r:380,pitch:1.15,yaw:.2},2500);
+  await say(`The village would lease about a quarter of it, around <b>${fmt(VILLAGE_AREA)} m²</b> in the middle. Green-zone rules allow building on 19% of the whole parcel, about ${fmt(VILLAGE_BUILDABLE)} m², and all of that can be used inside the village. The rest stays green.`,800);
+  await say(`We first imagined 12 families, but that number is still open, and your view counts. How many families do you see in your ideal village?`);
+  const fam=await askChoice(['8 to 12, intimate','About 20','30 or more','Not sure yet']);
+  profile.familiesAnswer=fam; profile.families={'8 to 12, intimate':10,'About 20':20,'30 or more':30}[fam]||16;
+  const dots=homeSpots(profile.families).map(([x,z])=>{ const d=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('#fff8e6','rgba(233,185,106,.9)'),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending})); d.position.set(x,H(x,z)+4,z); d.scale.set(.1,.1,1); scene.add(d); return d; });
+  dots.forEach((d,j)=>setTimeout(()=>{ tween(d.scale,'x',9,600); tween(d.scale,'y',9,600); },RM?0:j*60));
+  await say(profile.families<=12?`Intimate. Everyone knows everyone, and the commons feels like a family table.`:profile.families>=30?`A lively village. More families also means the cost of the shared spaces is spread wider.`:fam==='Not sure yet'?`That's fair. Here's what about ${profile.families} homes would look like, so you can feel the space.`:`A lively middle: big enough for many friendships, small enough to know every name.`,1100);
+  showLabel('lb-zone',false); showLabel('lb-green',false); removeAll(dots); tween(zone.material,'opacity',.35,1500);
+
+  orbTarget.set(CX,24,CZ); camTo({tx:CX,tz:CZ,r:260,pitch:1.0,yaw:.4},3200);
+  $('lb-vision').textContent=`“${short(profile.vision,90)}”`; labels['lb-vision']=new THREE.Vector3(CX,22,CZ); showLabel('lb-vision',true);
+  tween(hubRing.material,'opacity',.95,2000); tween(uni.uHub,'value',1,2000); showLabel('lb-hub',true);
+  await say(`At the heart, a green commons all the families share. I've put your vision right here, because this is where it would start. You decide how it feels. Where are you on this scale?`);
+  profile.privacy=await askScale('One big family','My own retreat',5);
+  const hubScale=1.3-(profile.privacy-1)/9*.55;
+  tween(hubRing.scale,'x',hubScale,1500); tween(hubRing.scale,'y',hubScale,1500); tween(uni.uHubR,'value',HUB_R*hubScale,1500);
+  if(profile.privacy<=4) wishes.add('commons'); else if(profile.privacy>=7) wishes.add('quiet');
+  await say(profile.privacy<=4?`Then the heart should be bigger. I've widened the commons.`:profile.privacy>=7?`Then I'll keep the commons intimate and leave more room for everyone's own space.`:`A bit of both. I'll keep the commons as it is.`,500);
+  showLabel('lb-hub',false);
+
+  await say(`What would you love to find here? Choose freely. I'll build whatever you pick.`);
+  profile.spaces=await askMulti(SPACES,'Build these');
+  await say(`And is there something you envision that isn't on the list? An outdoor cinema, a library, a tree house for the kids… anything at all.`);
+  profile.idea=await askText('Your idea for the village',{optional:true,cta:'Add it'});
+  if(profile.idea){ SPACES.custom=profile.idea; SPACE_SHORT.custom=short(profile.idea,24); profile.spaces.push('custom');
+    const aiI=await askAsara('idea',profile.idea);
+    await say(aiI?`${esc(aiI.reply)} I'm adding it to the commons.`:`I love that. I'm adding “${esc(short(profile.idea,60))}” to the commons, and it goes into your application as your idea.`,400); }
+  const ringR=HUB_R*hubScale*.62;
+  profile.spaces.slice(0,8).forEach((k,n,arr)=>{
+    const others=arr.filter(x=>x!=='table'), idx=others.indexOf(k), a=-Math.PI/2+idx*2*Math.PI/Math.max(1,others.length);
+    const x=CX+(k==='table'?0:ringR*Math.cos(a)), z=CZ+(k==='table'?0:ringR*Math.sin(a));
+    const g=new THREE.Group(); let m;
+    if(k==='table'){ m=new THREE.Mesh(new THREE.BoxGeometry(12,1,2.4),new THREE.MeshLambertMaterial({color:0xc9894f})); m.position.y=1.2; g.add(m); }
+    else if(k==='pool'){ m=new THREE.Mesh(new THREE.BoxGeometry(7,.4,3.6),new THREE.MeshBasicMaterial({color:0x7cc6de})); m.position.y=.3; g.add(m); }
+    else { const body=new THREE.Mesh(new THREE.BoxGeometry(4.6,2.6,4.6),new THREE.MeshLambertMaterial({color:0xe8dcc0})); body.position.y=1.3;
+      const roof=new THREE.Mesh(new THREE.ConeGeometry(4.3,2.2,4),new THREE.MeshLambertMaterial({color:0xe9b96a})); roof.position.y=3.7; roof.rotation.y=Math.PI/4; g.add(body,roof); }
+    g.position.set(x,H(x,z),z); g.scale.setScalar(.001); scene.add(g);
+    setTimeout(()=>grow(g,1100),RM?0:200+n*350);
+    const el=document.createElement('div'); el.className='label space'; el.id='sp-'+k; el.textContent=SPACE_SHORT[k]; document.body.append(el);
+    labels[el.id]=new THREE.Vector3(x,H(x,z)+7,z); setTimeout(()=>showLabel(el.id,true),RM?0:500+n*350);
+  });
+  await say(profile.spaces.length?`There ${profile.spaces.length===1?'it is':'they are'}. See how fast a blank page fills up?`:`That's fine. The families will dream these up together.`,700);
+
+  await say(`Around the commons, there's room for food. How important is <b>food quality</b> to you?`);
+  profile.food=await askScale('Not much','Everything',7);
+  const forest=[]; const nTrees=Math.round(profile.food*3.2);
+  for(let t=0;t<nTrees;t++){ const a=Math.random()*Math.PI*2, rr=HUB_R*hubScale+1+Math.random()*Math.max(2,33-HUB_R*hubScale), x=CX+rr*Math.cos(a), z=CZ+rr*Math.sin(a); forest.push(tree(x,z,1.2+Math.random()*.7)); }
+  forest.forEach((t,j)=>setTimeout(()=>grow(t,800),RM?0:j*45));
+  await say(profile.food>=8?`Then let's plant. That's a food forest around the commons, one of the first ideas on the table.`:profile.food<=4?`A few trees, then. Not everyone needs to be a gardener.`:`A healthy middle: a good garden, without the obsession.`,400);
+  await say(`Do you eat meat?`);
+  profile.meat=await askChoice(['Yes','Sometimes','No, plant-based']);
+  await say(`And would you mind if your neighbours do?`);
+  profile.meatOk=await askChoice(['Not at all','A little','Yes, I would']);
+  await say(`Thank you for being honest. Shared kitchens only work when people agree on the rules, so it helps to know this early.`,400);
+
+  /* ---------- 3. Your home ---------- */
+  stepTo(3); showLabel('lb-vision',false);
+  orbTarget.set(CX+180,60,CZ); camTo({tx:CX,tz:CZ,r:520,pitch:.35,yaw:-.25},3400);
+  tween(arc.material,'opacity',.7,1500); tween(sun.material,'opacity',1,1500); sunRun=true; tween(uni.uWarm,'value',1,2000); showLabel('lb-sun',true);
+  await say(`Now, your own corner, ${N}. Here the sun rises in the east and climbs almost straight overhead. What matters most for your home?`);
+  await ask((box,done)=>{
+    const chips=document.createElement('div'); chips.className='row';
+    for(const [k,v] of Object.entries(WISH)){ const c=button(v,'chip'); c.type='button'; c.setAttribute('aria-pressed',String(wishes.has(k)));
+      c.onclick=()=>{ const on=c.getAttribute('aria-pressed')!=='true'; c.setAttribute('aria-pressed',on); on?wishes.add(k):wishes.delete(k); }; chips.append(c); }
+    const row=document.createElement('form'); row.className='row';
+    const inp=document.createElement('input'); inp.type='text'; inp.id='wish-input'; inp.placeholder='Or say it in your own words'; inp.setAttribute('aria-label','Describe your place');
+    row.append(inp,button('Find my place')); box.append(chips,row);
+    row.addEventListener('submit',e=>{e.preventDefault(); const t=inp.value.toLowerCase();
+      if(/sun|morning|light|east|bright/.test(t))wishes.add('morning'); if(/quiet|calm|privacy|private|peace/.test(t))wishes.add('quiet');
+      if(/road|car|access|drive|scooter|motor/.test(t))wishes.add('access'); if(/garden|food|grow|vegetable|forest|farm|chicken|space|big/.test(t))wishes.add('garden');
+      if(/common|cent|people|social|community|together/.test(t))wishes.add('commons');
+      if(!wishes.size){wishes.add('morning');wishes.add('garden');}
+      me(inp.value.trim()||[...wishes].map(w=>WISH[w]).join(', ')); done(); });
+  });
+  showLabel('lb-sun',false); tween(arc.material,'opacity',0,1200); tween(sun.material,'opacity',0,1200); sunRun=false; tween(uni.uWarm,'value',.3,1500);
+  uni.uSun.value.set(.5,.75,-.2).normalize();
+  thinking=true; $('gorb').classList.add('thinking');
+  await say(`Let me look around the village…`,300);
+  const cand=[...Array(12).keys()].map(i=>{ const a=(i+.5)*Math.PI/6, r=wishes.has('commons')?42:55, x=CX+r*Math.cos(a), z=CZ+r*Math.sin(a);
+    return {i,a,r,x,z,road:Math.round(Math.min(...roadPts.map(([px,pz])=>Math.hypot(px-x,pz-z)))),green:Math.round(reach(a)-VZ)}; });
+  const norm=k=>{ const v=cand.map(p=>p[k]), lo=Math.min(...v), hi=Math.max(...v); return p=>(p[k]-lo)/((hi-lo)||1); };
+  const nRoad=norm('road'), nGreen=norm('green');
+  if(wishes.has('quiet')&&wishes.has('access')) wishes.delete('quiet');
+  let best=-1e9, spot=cand[0];
+  for(const p of cand){ let sc=0;
+    if(wishes.has('morning')) sc+=(Math.cos(p.a)+1)/2; if(wishes.has('quiet')) sc+=nRoad(p); if(wishes.has('access')) sc+=1-nRoad(p);
+    if(wishes.has('garden')) sc+=nGreen(p);
+    if(sc>best){best=sc;spot=p;} }
+  choice=spot.i;
+  await wait(800); thinking=false; $('gorb').classList.remove('thinking');
+  const fx=spot.x, fz=spot.z;
+  orbTarget.set(fx,26,fz);
+  await camTo({tx:fx,tz:fz,ty:0,r:150,pitch:.62,yaw:Math.atan2(fx-CX,fz-CZ)+.5},3000);
+  const preview=rectPlot(fx,fz,17,spot.a,'#e9b96a'); tween(preview.grp.position,'y',0,1200); tween(preview.line.material,'opacity',.5,1200); tween(preview.fill.material,'opacity',.08,1200);
+  const reasons=[];
+  if(wishes.has('morning')) reasons.push(Math.cos(spot.a)>.3?'it faces east, toward the morning sun':'it keeps good light through the morning');
+  if(wishes.has('quiet')) reasons.push(`it's ${spot.road} m from the nearest road`);
+  if(wishes.has('access')) reasons.push(`the road is only ${spot.road} m away`);
+  if(wishes.has('commons')) reasons.push('it sits on the inner ring, close to the commons');
+  if(wishes.has('garden')) reasons.push('it opens onto the green land beyond the village');
+  if(!reasons.length) reasons.push('it balances light, quiet and access');
+  await say(`This corner fits you: ${reasons.join(', and ')}. It's yours to shape.`,500);
+
+  await say(`What would you like your home to be made of?`);
+  const matLabel=await askChoice(Object.values(MATERIALS).map(m=>m.label));
+  profile.material=Object.keys(MATERIALS).find(k=>MATERIALS[k].label===matLabel);
+  await say(`And how much does the choice of materials matter to you?`);
+  profile.materials=await askScale('Not much','Deeply',6);
+  await say(profile.materials>=7?`Then you'll love the design phase. The families choose materials and style together, and I'll show everyone the options.`:`Good to know. Some people care more about how a place feels than what it's made of.`,400);
+
+  await say(`What kind of home do you see yourself in?`);
+  const typeOf=async()=>{ const lbl=await askChoice(Object.values(HOME_TYPES).map(t=>t.label)); return Object.keys(HOME_TYPES).find(k=>HOME_TYPES[k].label===lbl); };
+  profile.homeType=await typeOf();
+  let budget=0, P=null, built=[], first=true, askB=true;
+  while(true){
+    const wish=HOME_TYPES[profile.homeType].plan();
+    if(askB){
+      await say(!first?`Of course. What budget would you like to try?`:wish?`A home like that, about ${fmt(wish.floor)} m², would come to roughly <b>$${fmt(wish.total)}</b>, including its land and your share of building the commons. Now it's entirely your call: what budget feels comfortable for you?`:`No problem. Let's start from the other side: what budget feels comfortable for you, for land and building together?`);
+      budget=await askBudget();
+    }
+    const fits=!!wish&&wish.total<=budget;
+    P=fits?wish:planForBudget(budget);
+    removeAll(built); built=[];
+    const side=Math.sqrt(P.land), mat=MATERIALS[profile.material];
+    const mine=rectPlot(fx,fz,side,spot.a,'#e9b96a'); built.push(mine.grp);
+    tween(mine.grp.position,'y',0,1300); tween(mine.fill.material,'opacity',.42,1300); tween(mine.line.material,'opacity',1,1300);
+    const hs=house(fx,fz,Math.sqrt(P.foot)/3.4,mat.roof,mat.body,P.storeys); hs.rotation.y=-spot.a; built.push(hs); setTimeout(()=>grow(hs,1100),RM?0:500);
+    [[1,1],[-1,1],[1,-1],[-1,-1]].forEach(([u,v],t)=>{ const ca=Math.cos(spot.a),sa=Math.sin(spot.a),h=side/2*.82, x=fx+u*h*ca-v*h*sa, z=fz+u*h*sa+v*h*ca; const tr=tree(x,z,1.3); built.push(tr); setTimeout(()=>grow(tr,800),RM?0:700+t*120); });
+    labels['lb-you']=new THREE.Vector3(fx,H(fx,fz)+18,fz); showLabel('lb-you',true);
+    const intro=fits?`Your budget covers it. Here's the rough picture:`:wish?`That home would need about $${fmt(wish.total)}. With <b>$${fmt(budget)}</b>, here's what's possible today:`:`Here's what <b>$${fmt(budget)}</b> could look like:`;
+    await say(`${intro}<dl class="est"><dt>Private land, 30-year lease · ${fmt(P.land)} m²</dt><dd>$${fmt(P.landCost)}</dd><dt>Home · ${fmt(P.floor)} m²${P.storeys===2?' over two storeys':''}, commons share included</dt><dd>$${fmt(P.build)}</dd><dt class="tot">Rough total</dt><dd class="tot">$${fmt(P.total)}</dd></dl>`,500);
+    if(!fits&&P.floor>=MAX_FLOOR&&budget>P.total*1.1) await say(`Your budget goes beyond the largest home we've planned so far. That's a good conversation for the design phase.`,300);
+    if(first) await say(`Your private land is twice your home's footprint. Everything around it, the green heart and the shared spaces, belongs to all the families together.`,400);
+    first=false;
+    const next=await askChoice(['That feels right','Try another budget','Change my home type']);
+    if(next==='That feels right') break;
+    if(next==='Change my home type'){ await say(`Sure. Which one?`); profile.homeType=await typeOf(); askB=false; } else askB=true;
+  }
+  scene.remove(preview.grp);
+  await say(`Perfect. Please treat these numbers as rough. Final prices are set once the founding families agree on a shared vision: materials and style, what we build in the commons, shared water and energy, and more.`,700);
+
+  /* ---------- 4. The village ---------- */
+  stepTo(4); showLabel('lb-you',false); orbTarget.set(CX,30,CZ);
+  camTo({tx:CX,ty:0,tz:CZ,r:340,pitch:1.0,yaw:cam.yaw+.6},4000);
+  homeSpots(profile.families-1,[fx,fz]).forEach(([x,z,a],j)=>setTimeout(()=>{ const m=rectPlot(x,z,17.3,a,FAM[j%FAM.length]); tween(m.grp.position,'y',0,1400); tween(m.fill.material,'opacity',.22,1400); tween(m.line.material,'opacity',.65,1400);
+    const hh=house(x,z,3.6,0x8e9a86,0xe8dcc0,j%3===0?2:1); hh.rotation.y=-a; hh.children.forEach(c=>{c.material=c.material.clone();c.material.transparent=true;c.material.opacity=.6;}); grow(hh,1000); },RM?0:j*160));
+  await say(`Now picture the ${profile.families-1} other families you imagined, each adding their own answers to this page. All the homes and shared buildings fit within the ${fmt(VILLAGE_BUILDABLE)} m² the law allows, and the green heart stays open.`,900);
+  await say(`When two wishes collide, I don't pick a winner. I show the families the options and the trade-offs, and they decide together.`,600);
+  showLabel('lb-vision',true);
+  await say(`You told me: “${esc(short(profile.vision,110))}” The co-design is where that becomes real, with families chosen because they share it.`,800);
+  const aiX=await askAsara('closing','');
+  if(aiX) await say(esc(aiX.reply),600);
+  await say(`So, ${N}: places are limited, and the families chosen first will shape the village with us, even how many families it holds. The founder personally reviews every application and invites the families who fit to meet. If this already feels like your village, now is the moment.`,700);
+  const j=await say(`Here's the journey from here:`,200);
+  const ul=document.createElement('ul'); ul.className='journey';
+  ul.innerHTML=`<li class="now"><b>Apply</b>You're here. Your answers and sketch join your application.</li><li><b>Selection</b>The founder meets shortlisted families in person.</li><li><b>Co-design</b>The founding families shape the village with me, week by week.</li><li><b>Vote</b>Every family approves the final layout.</li><li><b>Build</b>The village takes form on this land.</li>`;
+  j.appendChild(ul); log.scrollTop=log.scrollHeight;
+  const openCard=()=>{
+    idleSpin=0; renderer.render(scene,camera);
+    $('card-img').src=renderer.domElement.toDataURL('image/jpeg',.85);
+    $('card-title').textContent=`${name}'s place in AIGA Village`;
+    $('card-quote').textContent=profile.belief?`“${profile.belief}”`:''; $('card-quote').hidden=!profile.belief;
+    $('card-vision').textContent=`My ideal village: ${profile.vision}`;
+    const bits=[ profile.kids==='No children'?'No children':`${profile.kids} ${profile.kids==='1'?'child':'children'}${profile.ages?` (${profile.ages})`:''}`,
+      `Village of about ${profile.families} families`, `Food ${profile.food}/10`, profile.meat==='No, plant-based'?'Plant-based':profile.meat==='Sometimes'?'Eats meat sometimes':'Eats meat',
+      `${MATERIALS[profile.material].label} home`, profile.privacy<=4?'Big-family spirit':profile.privacy>=7?'Values privacy':'Balance of both' ];
+    if(profile.film) bits.push(`Film: ${profile.film}`);
+    $('card-profile').textContent=bits.join(' · ');
+    const cw=$('card-wishes'); cw.innerHTML=''; profile.spaces.forEach(k=>{const s=document.createElement('span');s.className='chip';s.setAttribute('aria-pressed','true');s.textContent=SPACES[k];cw.append(s);});
+    $('cf-plot').textContent=`${fmt(P.land)} m²`; $('cf-area').textContent=`${fmt(P.floor)} m²${P.storeys===2?' · 2 fl.':''}`; $('cf-hub').textContent=`$${fmt(P.total)}`;
+    $('card').classList.add('on'); $('card-close').focus();
+  };
+  const DIRS=['east','south-east','south','south-west','west','north-west','north','north-east'];
+  const buttons=(withApply)=>{
+    actions.innerHTML='';
+    const r=document.createElement('div'); r.className='row';
+    const c=button('See my dream card',withApply?'ghost':'btn small'), g=button('Explore the map','ghost');
+    if(withApply){ const b=button('Apply for a place'); b.onclick=apply; r.append(b); }
+    r.append(c,g); actions.append(r);
+    c.onclick=openCard; g.onclick=()=>{ g.textContent='Drag to look around'; idleSpin=0; };
+  };
+  const payload=(email,phone)=>{
+    const utm={}; new URLSearchParams(location.search).forEach((v,k)=>{ if(/^utm_|^(fbclid|gclid|ttclid)$/.test(k)) utm[k]=v.slice(0,200); });
+    return { applicantId, consent:true, firstName:name, email, phone,
+      profile:{ belief:profile.belief, film:profile.film||undefined, kids:profile.kids, ages:profile.ages||undefined, vision:profile.vision,
+        visionFollowUpQuestion:profile.visionFollowUpQuestion, visionFollowUp:profile.visionFollowUp||undefined, childhood:profile.wish||undefined,
+        families:profile.families, familiesAnswer:profile.familiesAnswer, privacy:profile.privacy, spaces:profile.spaces.map(k=>SPACES[k]),
+        idea:profile.idea||undefined, food:profile.food, meat:profile.meat, meatOk:profile.meatOk, material:MATERIALS[profile.material].label,
+        materials:profile.materials, homeType:HOME_TYPES[profile.homeType].label, wishes:[...wishes].map(w=>WISH[w]),
+        direction:DIRS[((Math.round(spot.a/(Math.PI/4))%8)+8)%8] },
+      plan:{ budget, land:P.land, floor:P.floor, storeys:P.storeys, total:P.total }, utm };
+  };
+  const apply=async()=>{
+    actions.innerHTML=''; me('Apply for a place');
+    if(!applyOpen){ await say(`Applications open very soon, ${N}. Keep your dream card, and come back in a few days.`,200); buttons(true); return; }
+    await say(`Wonderful. Where can the founder reach you? An email, a WhatsApp number, or both.`);
+    const sent=await ask((box,done)=>{
+      const f=document.createElement('form'); f.className='apply-form'; f.noValidate=true;
+      f.innerHTML=`<input type="email" id="apply-email" autocomplete="email" placeholder="Email" aria-label="Email">
+        <input type="tel" id="apply-phone" autocomplete="tel" placeholder="WhatsApp number, with country code" aria-label="WhatsApp number">
+        <label class="check"><input type="checkbox" id="apply-consent"><span>I agree that AIGA Village keeps my answers and sketch and contacts me about my application. I can ask for them to be deleted at any time.</span></label>
+        <div class="hint" role="alert"></div>`;
+      const go=button('Send my application'); f.append(go);
+      const err=f.querySelector('.hint');
+      f.addEventListener('submit',async e=>{ e.preventDefault();
+        const email=f.querySelector('#apply-email').value.trim(), phone=f.querySelector('#apply-phone').value.trim();
+        if(!email&&!phone){ err.textContent='Add an email or a WhatsApp number so the founder can reach you.'; return; }
+        if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ err.textContent="That email doesn't look right. Check it and try again."; return; }
+        if(phone&&!/^[+0-9 ()-]{6,32}$/.test(phone)){ err.textContent='Use digits, spaces and an optional + for the WhatsApp number.'; return; }
+        if(!f.querySelector('#apply-consent').checked){ err.textContent='Please tick the box so we can keep your answers.'; return; }
+        go.disabled=true; go.textContent='Sending…'; err.textContent='';
+        try{
+          const r=await fetch('/api/applications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload(email,phone))});
+          const d=await r.json().catch(()=>({}));
+          if(!r.ok){ err.textContent=d.error||'Something went wrong. Please try again.'; go.disabled=false; go.textContent='Send my application'; return; }
+          me(email||phone); done(true);
+        }catch{ err.textContent='Your connection dropped. Please try again.'; go.disabled=false; go.textContent='Send my application'; }
+      });
+      box.append(f); setTimeout(()=>f.querySelector('#apply-email').focus(),50);
+    });
+    if(sent){ await say(`Thank you, ${N}. Your application is with the founder now, together with your vision and your sketch. You'll hear from us by email or WhatsApp.`,300); buttons(false); }
+  };
+  buttons(true);
+}
+$('card-close').onclick=()=>{$('card').classList.remove('on'); idleSpin=0.00003;};
+$('restart').onclick=()=>location.reload();
+})();
+</script>
+
 </body>
 </html>

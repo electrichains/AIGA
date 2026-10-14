@@ -19,3 +19,18 @@ services:
         value: production
       - key: CESIUM_ION_TOKEN
         sync: false
+      # Asara, the onboarding guide (OpenAI)
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4.1-mini
+      # Applications go to J-Mission through an "api" entry point of the AIGA Village business
+      - key: JMISSION_URL
+        value: https://j-mission.onrender.com
+      - key: JMISSION_API_KEY
+        sync: false
+      - key: JMISSION_ENTRY_POINT
+        sync: false
+      # Protects the MCP endpoints (/sse, /messages) and the KMZ upload
+      - key: AIGA_ADMIN_TOKEN
+        sync: false

@@ -35,6 +35,25 @@ AIGA/
 
 ---
 
+## AIGA Village Onboarding
+
+The homepage (`/`) is the applicant onboarding: a 3D walk from a map of Bali down to the real Nusa Dua parcel,
+guided by **Asara**. Applicants share who they are and their vision, shape the commons, choose a home and a budget,
+and can apply. The Cesium dashboard moved to `/dashboard`.
+
+- `POST /api/asara` — Asara's personal replies at key moments (OpenAI, `OPENAI_API_KEY`, `OPENAI_MODEL`).
+  The page asks for consent first and falls back to scripted lines when AI is off or unavailable.
+- `POST /api/applications` — sends the application to **J-Mission** (`POST /api/people` through an `api` entry
+  point, with consent), answers stored as `aiga_*` attributes plus a memory note. Needs `JMISSION_URL`,
+  `JMISSION_API_KEY` (a key limited to the AIGA Village business) and `JMISSION_ENTRY_POINT` (the entry point slug).
+- `GET /api/onboarding/status` — which of the two are configured.
+
+**Security:** set `AIGA_ADMIN_TOKEN` to require `Authorization: Bearer <token>` (or `?token=`) on `/sse`, `/messages`
+and `/api/upload-kmz`. KMZ links must be public `https://` URLs (no private addresses, no redirects, 15 MB max).
+CORS is closed unless `CORS_ORIGINS` lists allowed origins. Public endpoints are rate limited.
+
+---
+
 ## Core MCP Tools
 
 AIGA exposes 4 standardized MCP tools conforming to the `@modelcontextprotocol/sdk`:
@@ -93,7 +112,7 @@ Broadcasts live spatial telemetry to all connected family web browsers in real-t
 
 ## Real-Time 3D Web Dashboard
 
-The 3D web platform is served at `/web` and `/`:
+The 3D dashboard is served at `/dashboard`:
 - **Engine**: CesiumJS 3D globe with 3D extruded family plots, terrain elevation, and layer toggles.
 - **HUD Interface**:
   - Live 12-family indicator bar with real-time WebSocket connection state.

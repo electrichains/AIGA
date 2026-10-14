@@ -14,6 +14,8 @@ import {
 import { parseKmzLayers } from './spatial/kmzParser.js';
 import { FAMILY_COLORS } from './spatial/generator.js';
 import * as turf from '@turf/turf';
+import { onboardingRouter } from './web/onboarding.js';
+import { requireAdmin, rateLimit } from './web/guards.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,12 +34,31 @@ function startHttpAndSseServer() {
   const app = express();
   const PORT = Number(process.env.PORT || 10000);
 
-  // Security & utility middlewares
-  app.use(cors());
-  app.use(express.json({ limit: '50mb' }));
+  // Render sits behind a proxy: trust it so rate limits see the real client IP.
+  app.set('trust proxy', 1);
+  app.disable('x-powered-by');
 
-  // Serve static Cesium 3D Dashboard
+  // CORS only for origins listed in CORS_ORIGINS (comma-separated). The onboarding
+  // page and dashboard are same-origin, and MCP clients are servers, so none need it.
+  const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map((o) => o.trim()).filter(Boolean);
+  app.use(cors({ origin: corsOrigins.length ? corsOrigins : false }));
+
+  // Large bodies only where KMZ files travel (admin routes); everything else stays small.
+  app.use(['/api/upload-kmz', '/messages'], express.json({ limit: '15mb' }));
+  app.use(express.json({ limit: '64kb' }));
+
+  if (!process.env.AIGA_ADMIN_TOKEN) {
+    console.warn('[Security] AIGA_ADMIN_TOKEN is not set: the MCP endpoints and KMZ upload are open to anyone.');
+  }
+
+  // Applicant onboarding API (Asara + applications to J-Mission)
+  app.use(onboardingRouter());
+
+  // Static files: the onboarding experience at /, the Cesium dashboard at /dashboard
   const publicDir = path.join(__dirname, 'web/public');
+  app.get('/dashboard', (_req, res) => {
+    res.sendFile(path.join(publicDir, 'dashboard.html'));
+  });
   app.use(express.static(publicDir));
   app.use('/web', express.static(publicDir));
 
@@ -58,7 +79,7 @@ function startHttpAndSseServer() {
   });
 
   // REST endpoint to upload and visualize KMZ/KML files directly
-  app.post('/api/upload-kmz', async (req, res) => {
+  app.post('/api/upload-kmz', requireAdmin, rateLimit({ windowMs: 60_000, max: 10 }), async (req, res) => {
     try {
       const { kmz_base64, kmz_url, name } = req.body;
       if (!kmz_base64 && !kmz_url) {
@@ -136,7 +157,7 @@ function startHttpAndSseServer() {
       });
     } catch (err: any) {
       console.error('[API] KMZ Upload error:', err);
-      res.status(500).json({ error: err.message });
+      res.status(400).json({ error: err.message });
     }
   });
 
@@ -145,7 +166,7 @@ function startHttpAndSseServer() {
   const sseSessions = new Map<string, SSEServerTransport>();
 
   // 1. SSE Connection endpoint for JamotLite MCP client
-  app.get('/sse', async (req, res) => {
+  app.get('/sse', requireAdmin, async (req, res) => {
     console.log('[MCP SSE] New client connection request');
     try {
       // In @modelcontextprotocol/sdk, SSEServerTransport receives the POST message endpoint ('/messages') and the res object
@@ -169,7 +190,7 @@ function startHttpAndSseServer() {
   });
 
   // 2. Incoming MCP messages POST endpoint
-  app.post('/messages', async (req, res) => {
+  app.post('/messages', requireAdmin, async (req, res) => {
     const sessionId = (req.query.sessionId as string) || '';
     const transport = sseSessions.get(sessionId);
 
@@ -189,7 +210,7 @@ function startHttpAndSseServer() {
     }
   });
 
-  // Root route fallback to 3D web viewer
+  // Root route: the AIGA Village onboarding
   app.get('/', (_req, res) => {
     res.sendFile(path.join(publicDir, 'index.html'));
   });
@@ -203,7 +224,8 @@ function startHttpAndSseServer() {
     console.log('===========================================================');
     console.log('🌍 AIGA: AI Village & Spatial Planning Engine is LIVE');
     console.log(`📡 Port:               ${PORT}`);
-    console.log(`🛰️  3D Web Viewer:      http://localhost:${PORT}/web`);
+    console.log(`🏡 Village onboarding: http://localhost:${PORT}/`);
+    console.log(`🛰️  3D Dashboard:       http://localhost:${PORT}/dashboard`);
     console.log(`⚡ MCP SSE Endpoint:   http://localhost:${PORT}/sse`);
     console.log(`💬 WebSocket Stream:   ws://localhost:${PORT}/ws`);
     console.log(`❤️  Health Check:       http://localhost:${PORT}/health`);

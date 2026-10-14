@@ -3,6 +3,10 @@ import JSZip from 'jszip';
 import { DOMParser } from '@xmldom/xmldom';
 import * as toGeoJSON from '@tmcw/togeojson';
 import * as turf from '@turf/turf';
+import { fetchPublicBuffer } from '../web/guards.js';
+
+const MAX_DOWNLOAD_BYTES = 15_000_000;
+const MAX_KML_BYTES = 30_000_000;
 
 export interface ParsedKMZResult {
   featureCollection: GeoJSON.FeatureCollection;
@@ -66,7 +70,13 @@ async function extractKmlFromBuffer(buf: Buffer): Promise<string> {
     if (!file) {
       throw new Error(`KMZ archive does not contain a valid .kml file. Found: ${Object.keys(zip.files).join(', ')}`);
     }
-    return await file.async('string');
+    const declared = (file as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize;
+    if (declared && declared > MAX_KML_BYTES) {
+      throw new Error(`The KML inside this KMZ is larger than ${MAX_KML_BYTES / 1e6} MB.`);
+    }
+    const kml = await file.async('string');
+    if (kml.length > MAX_KML_BYTES) throw new Error(`The KML inside this KMZ is larger than ${MAX_KML_BYTES / 1e6} MB.`);
+    return kml;
   }
 
   // Otherwise assume raw UTF-8 KML XML
@@ -83,12 +93,8 @@ export async function parseKmzLayers(options: {
   let kmlXml: string;
 
   if (options.kmz_url) {
-    const response = await fetch(options.kmz_url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch KMZ/KML from ${options.kmz_url}: ${response.status} ${response.statusText}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    kmlXml = await extractKmlString(Buffer.from(arrayBuffer));
+    const buffer = await fetchPublicBuffer(options.kmz_url, MAX_DOWNLOAD_BYTES);
+    kmlXml = await extractKmlString(buffer);
   } else if (options.kmz_base64) {
     kmlXml = await extractKmlString(options.kmz_base64);
   } else {
