@@ -56,11 +56,22 @@ function startHttpAndSseServer() {
 
   // Static files: the onboarding experience at /, the Cesium dashboard at /dashboard
   const publicDir = path.join(__dirname, 'web/public');
+  // three.js is served from our own origin (no third-party CDN wait on mobile), cached for a year.
+  const threeBuildDir = path.resolve(__dirname, '../node_modules/three/build');
+  app.use('/vendor/three', express.static(threeBuildDir, { maxAge: '365d', immutable: true, index: false }));
+  // Pages always revalidate so a deploy shows up at once; other assets cache for a day.
+  const staticOptions = {
+    maxAge: '1d',
+    setHeaders: (res: express.Response, filePath: string) => {
+      if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+    },
+  };
   app.get('/dashboard', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(publicDir, 'dashboard.html'));
   });
-  app.use(express.static(publicDir));
-  app.use('/web', express.static(publicDir));
+  app.use(express.static(publicDir, staticOptions));
+  app.use('/web', express.static(publicDir, staticOptions));
 
   // Health check endpoint for Render monitoring
   app.get('/health', (_req, res) => {
