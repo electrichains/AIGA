@@ -87,6 +87,7 @@ describe('Asara', () => {
   test('model output is cleaned and length-limited', () => {
     assert.deepEqual(cleanAsaraOutput('{"reply":" Hi there. ","followUp":""}'), { reply: 'Hi there.', followUp: null });
     assert.equal(cleanAsaraOutput('not json'), null);
+    assert.deepEqual(cleanAsaraOutput('```json\n{"reply":"Fenced.","followUp":"Why?"}\n```'), { reply: 'Fenced.', followUp: 'Why?' });
     assert.equal(cleanAsaraOutput('{"reply":""}'), null);
     assert.equal(cleanAsaraOutput(JSON.stringify({ reply: 'x'.repeat(2000) }))!.reply.length, 420);
   });

@@ -41,7 +41,8 @@ The homepage (`/`) is the applicant onboarding: a 3D walk from a map of Bali dow
 guided by **Asara**. Applicants share who they are and their vision, shape the commons, choose a home and a budget,
 and can apply. The Cesium dashboard moved to `/dashboard`.
 
-- `POST /api/asara` — Asara's personal replies at key moments (OpenAI, `OPENAI_API_KEY`, `OPENAI_MODEL`).
+- `POST /api/asara` — Asara's personal replies at key moments: Gemini (`GEMINI_API_KEY`, `GEMINI_MODEL`, default
+  `gemini-3.8-flash`) when set, otherwise OpenAI (`OPENAI_API_KEY`, `OPENAI_MODEL`).
   The page asks for consent first and falls back to scripted lines when AI is off or unavailable.
 - `POST /api/applications` — sends the application to **J-Mission** (`POST /api/people` through an `api` entry
   point, with consent), answers stored as `aiga_*` attributes plus a memory note. Needs `JMISSION_URL`,

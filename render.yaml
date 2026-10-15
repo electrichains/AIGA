@@ -19,7 +19,11 @@ services:
         value: production
       - key: CESIUM_ION_TOKEN
         sync: false
-      # Asara, the onboarding guide (OpenAI)
+      # Asara, the onboarding guide: Gemini (preferred when set) or OpenAI
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL

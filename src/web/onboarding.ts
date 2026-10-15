@@ -6,13 +6,14 @@ import { rateLimit } from './guards.js';
  * The AIGA Village onboarding API.
  *
  *   POST /api/asara         Asara's personal reply at a few key moments of the
- *                           conversation (OpenAI). The page falls back to its
+ *                           conversation (Gemini or OpenAI). The page falls back to its
  *                           scripted lines whenever this is unavailable.
  *   POST /api/applications  Sends a finished application to J-Mission (the CRM)
  *                           through an "api" entry point, with the applicant's
  *                           consent. The J-Mission key never reaches the browser.
  *
- * Env: OPENAI_API_KEY, OPENAI_MODEL (default gpt-4.1-mini),
+ * Env: GEMINI_API_KEY + GEMINI_MODEL (default gemini-3.8-flash), or
+ *      OPENAI_API_KEY + OPENAI_MODEL (default gpt-4.1-mini); Gemini wins if both are set.
  *      JMISSION_URL, JMISSION_API_KEY, JMISSION_ENTRY_POINT.
  */
 
@@ -86,7 +87,7 @@ export function buildAsaraMessages(input: z.infer<typeof AsaraInput>) {
 
 export function cleanAsaraOutput(raw: string): { reply: string; followUp: string | null } | null {
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw.trim().replace(/^```(?:json)?\s*|\s*```$/g, ''));
     const reply = typeof parsed.reply === 'string' ? parsed.reply.trim().slice(0, 420) : '';
     if (!reply) return null;
     const follow = typeof parsed.followUp === 'string' ? parsed.followUp.trim().slice(0, 220) : '';
@@ -94,6 +95,50 @@ export function cleanAsaraOutput(raw: string): { reply: string; followUp: string
   } catch {
     return null;
   }
+}
+
+type ChatMessage = { role: string; content: string };
+
+/** Which model Asara talks through: Gemini when GEMINI_API_KEY is set, else OpenAI. */
+export function asaraProvider(): 'gemini' | 'openai' | null {
+  if (process.env.GEMINI_API_KEY) return 'gemini';
+  if (process.env.OPENAI_API_KEY) return 'openai';
+  return null;
+}
+
+async function complete(messages: ChatMessage[]): Promise<string> {
+  const [system, user] = [messages[0].content, messages[1].content];
+  if (asaraProvider() === 'gemini') {
+    const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY! },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: 'user', parts: [{ text: user }] }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 400, responseMimeType: 'application/json' },
+      }),
+      signal: AbortSignal.timeout(9_000),
+    });
+    if (!response.ok) throw new Error(`Gemini ${response.status}: ${(await response.text().catch(() => '')).slice(0, 300)}`);
+    const data = (await response.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    return (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('');
+  }
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+      messages,
+      response_format: { type: 'json_object' },
+      temperature: 0.7,
+      max_tokens: 220,
+    }),
+    signal: AbortSignal.timeout(9_000),
+  });
+  if (!response.ok) throw new Error(`OpenAI ${response.status}: ${(await response.text().catch(() => '')).slice(0, 300)}`);
+  const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+  return data.choices?.[0]?.message?.content ?? '';
 }
 
 /* ---------------- applications → J-Mission ---------------- */
@@ -215,14 +260,13 @@ export function onboardingRouter(): Router {
 
   router.get('/api/onboarding/status', (_req, res) => {
     res.json({
-      asara: Boolean(process.env.OPENAI_API_KEY),
+      asara: Boolean(asaraProvider()),
       applications: Boolean(process.env.JMISSION_URL && process.env.JMISSION_API_KEY && process.env.JMISSION_ENTRY_POINT),
     });
   });
 
   router.post('/api/asara', rateLimit({ windowMs: 60_000, max: 20 }), async (req, res) => {
-    const key = process.env.OPENAI_API_KEY;
-    if (!key) {
+    if (!asaraProvider()) {
       res.status(503).json({ error: 'Asara is resting' });
       return;
     }
@@ -232,25 +276,7 @@ export function onboardingRouter(): Router {
       return;
     }
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify({
-          model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-          messages: buildAsaraMessages(parsed.data),
-          response_format: { type: 'json_object' },
-          temperature: 0.7,
-          max_tokens: 220,
-        }),
-        signal: AbortSignal.timeout(9_000),
-      });
-      if (!response.ok) {
-        console.error('[Asara] OpenAI error', response.status, (await response.text().catch(() => '')).slice(0, 300));
-        res.status(502).json({ error: 'Asara could not answer' });
-        return;
-      }
-      const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-      const out = cleanAsaraOutput(data.choices?.[0]?.message?.content ?? '');
+      const out = cleanAsaraOutput(await complete(buildAsaraMessages(parsed.data)));
       if (!out) {
         res.status(502).json({ error: 'Asara could not answer' });
         return;
@@ -258,7 +284,7 @@ export function onboardingRouter(): Router {
       res.json(out);
     } catch (err: any) {
       console.error('[Asara] request failed:', err?.message);
-      res.status(504).json({ error: 'Asara took too long' });
+      res.status(502).json({ error: 'Asara could not answer' });
     }
   });
 
