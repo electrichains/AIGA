@@ -44,7 +44,8 @@ const sample = {
     families: 20,
     spaces: ['A big table for everyone', 'Maker workshop'],
     food: 9,
-    homeType: 'One storey, about 150 m²',
+    homeType: '2 bedrooms',
+    modules: ['Bathroom & storage', 'Master bedroom', 'Living & kitchen, large', 'Bedroom with bathroom'],
     wishes: ['Morning sun'],
   },
   plan: { budget: 480000, land: 300, floor: 150, storeys: 1, total: 480000 },
@@ -72,6 +73,7 @@ describe('Applications to J-Mission', () => {
     assert.equal(attrs.aiga_shared_spaces, 'A big table for everyone, Maker workshop');
     assert.equal(attrs.aiga_budget_usd, 480000);
     assert.equal(attrs.aiga_families_envisioned, 20);
+    assert.equal(attrs.aiga_home_modules, 'Bathroom & storage, Master bedroom, Living & kitchen, large, Bedroom with bathroom');
     assert.ok(!('aiga_film' in attrs), 'empty answers are left out');
     for (const key of Object.keys(attrs)) assert.ok(key.length <= 60, key);
   });

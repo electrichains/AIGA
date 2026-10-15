@@ -173,6 +173,7 @@ const ApplicationInput = z.object({
     material: short.optional(),
     materials: z.number().int().min(1).max(10).optional(),
     homeType: short.optional(),
+    modules: z.array(short).max(20).optional(),
     wishes: z.array(short).max(10).optional(),
     direction: short.optional(),
   }),
@@ -214,6 +215,7 @@ export function toCrmAttributes(app: Application): Record<string, string | numbe
     aiga_material: p.material,
     aiga_materials_importance_1to10: p.materials,
     aiga_home_type: p.homeType,
+    aiga_home_modules: p.modules?.join(', '),
     aiga_home_wishes: p.wishes?.join(', '),
     aiga_plot_direction: p.direction,
     aiga_budget_usd: app.plan?.budget,
@@ -237,6 +239,7 @@ export function memoryNote(app: Application): string {
     p.idea ? `Their own idea for the village: ${p.idea}` : '',
     p.kids ? `Children: ${p.kids}${p.ages ? ` (${p.ages})` : ''}` : '',
     p.families ? `Imagines a village of about ${p.families} families.` : '',
+    p.modules?.length ? `Home sketch (${p.homeType ?? 'custom'}): ${p.modules.join(', ')}.` : '',
     app.plan ? `Budget about $${Math.round(app.plan.budget).toLocaleString('en-US')}; sketch: ${app.plan.floor} m² home on ${app.plan.land} m² of land.` : '',
   ].filter(Boolean).join('\n');
 }

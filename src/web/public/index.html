@@ -485,12 +485,12 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-setTimeout(()=>{ for(const id in mapLabels) showLabel(id,true); },RM?0:900);
+setTimeout(()=>{ if(phase==='map') for(const id in mapLabels) showLabel(id,true); },RM?0:900);
 Promise.all([tween(mc,'lr',Math.log(70),RM?0:7000),tween(mc,'tx',-3,RM?0:7000),tween(mc,'tz',7,RM?0:7000)]);
 async function dive(){
   ['mp-bali','mp-Denpasar','mp-Ubud','mp-Uluwatu'].forEach(id=>showLabel(id,false));
   await Promise.all([tween(mc,'tx',0,4200),tween(mc,'tz',0,4200),tween(mc,'lr',Math.log(2.6),4200),tween(mc,'pitch',1.42,4200)]);
-  showLabel('mp-pin',false); $('fade').classList.add('on'); await wait(750);
+  for(const id in mapLabels) showLabel(id,false); $('fade').classList.add('on'); await wait(750);
   phase='land'; $('fade').classList.remove('on');
 }
 
@@ -560,25 +560,86 @@ const HA=(PARCEL.area/10000).toFixed(1);
 /* Village economics (rough): the families lease about 27.5% of the parcel. The green-zone rule allows building on 19% of the
    whole parcel, and those rights are used inside the village area. A home's private land is twice its footprint.
    The build price per m² includes each family's share of building the commons. */
-const LAND_PER_M2=800, BUILD_PER_M2=1600, COVER=0.19, LEASED_SHARE=0.275, MAX_FOOT=150, MAX_FLOOR=300;
+const LAND_PER_M2=800, BUILD_PER_M2=1600, COVER=0.19, LEASED_SHARE=0.275;
 const VILLAGE_BUILDABLE=Math.round(PARCEL.area*COVER), VILLAGE_AREA=Math.round(PARCEL.area*LEASED_SHARE), VZ=Math.sqrt(VILLAGE_AREA/Math.PI);
-function plan(foot,floor){ foot=Math.round(foot); floor=Math.round(floor); const land=foot*2;
-  return {foot,floor,storeys:floor>foot+1?2:1,land,landCost:land*LAND_PER_M2,build:floor*BUILD_PER_M2,total:land*LAND_PER_M2+floor*BUILD_PER_M2}; }
-const HOME_TYPES={compact:{label:'Compact, about 100 m²',plan:()=>plan(100,100)},one:{label:'One storey, about 150 m²',plan:()=>plan(150,150)},two:{label:'Two storeys, about 300 m²',plan:()=>plan(150,300)},open:{label:'Not sure yet',plan:()=>null}};
-function planForBudget(b){ const single=MAX_FOOT*(2*LAND_PER_M2+BUILD_PER_M2);
-  if(b<=single){ const f=b/(2*LAND_PER_M2+BUILD_PER_M2); return plan(f,f); }
-  return plan(MAX_FOOT,Math.min(MAX_FLOOR,MAX_FOOT+(b-single)/BUILD_PER_M2)); }
+
+/* Modular homes: every room is a 6 m deep module; modules join end to end in a row (up to 30 m),
+   and extra rooms form a wing at a right angle. Single storey. Price stays all-in per m². */
+const MOD_DEPTH=6, ROW_MAX=30, MAX_FOOT=270;
+const MODULES={
+  L1:{w:6, name:'Living & kitchen, compact', kind:'living'},
+  L2:{w:10,name:'Living & kitchen, medium',  kind:'living'},
+  L3:{w:12,name:'Living & kitchen, large',   kind:'living'},
+  B: {w:6, name:'Master bedroom',            kind:'bed'},
+  B2:{w:6, name:'Bedroom with bathroom',     kind:'bedbath'},
+  C: {w:5, name:'Bathroom & storage',        kind:'bath'},
+};
+const CONFIGS=[
+  {key:'studio', label:'Studio with bathroom', row:['B2'], wing:[]},
+  {key:'compact',label:'1 bedroom, compact',   row:['L1','B2'], wing:[]},
+  {key:'one',    label:'1 bedroom',            row:['C','B','L2'], wing:[]},
+  {key:'two',    label:'2 bedrooms',           row:['C','B','L3','B2'], wing:[]},
+  {key:'three',  label:'3 bedrooms',           row:['B2','B2','L3'], wing:['B','C']},
+];
+const footOf=mods=>mods.reduce((s,k)=>s+MODULES[k].w*MOD_DEPTH,0);
+const bedroomsOf=mods=>mods.filter(k=>k==='B'||k==='B2').length;
+function priceOf(mods){ const foot=footOf(mods), land=foot*2;
+  return {foot,floor:foot,storeys:1,land,landCost:land*LAND_PER_M2,build:foot*BUILD_PER_M2,total:land*LAND_PER_M2+foot*BUILD_PER_M2,modules:mods.slice()}; }
+/* Splits a module list into a row and a wing, the way the builder snaps them together. */
+function arrange(mods,wingHint){
+  if(wingHint) return {row:mods.slice(0,mods.length-wingHint), wing:mods.slice(mods.length-wingHint)};
+  const row=[], wing=[]; let len=0;
+  for(const k of mods){ if(!wing.length && len+MODULES[k].w<=ROW_MAX){ row.push(k); len+=MODULES[k].w; } else wing.push(k); }
+  return {row,wing};
+}
+/* Rectangles in local metres: u along the row, v away from the commons. Centred on the home. */
+function layoutRects(row,wing){
+  const rects=[]; let u=0;
+  for(const k of row){ rects.push({k,u0:u,u1:u+MODULES[k].w,v0:0,v1:MOD_DEPTH}); u+=MODULES[k].w; }
+  let v=MOD_DEPTH; const wu1=Math.max(u,MOD_DEPTH), wu0=wu1-MOD_DEPTH;
+  for(const k of wing){ rects.push({k,u0:wu0,u1:wu1,v0:v,v1:v+MODULES[k].w}); v+=MODULES[k].w; }
+  const U0=Math.min(...rects.map(r=>r.u0)), U1=Math.max(...rects.map(r=>r.u1)), V0=Math.min(...rects.map(r=>r.v0)), V1=Math.max(...rects.map(r=>r.v1));
+  const cu=(U0+U1)/2, cv=(V0+V1)/2;
+  return {rects:rects.map(r=>({...r,u0:r.u0-cu,u1:r.u1-cu,v0:r.v0-cv,v1:r.v1-cv})), U:U1-U0, V:V1-V0};
+}
+const MODCOL={living:0xa8bd8c, bed:0xc4836f, bath:0x7d919f, cabinet:0x9a6f55};
+function moduleMesh(k,roofCol,opacity=1){
+  const m=MODULES[k], g=new THREE.Group(), h=3.2, gap=.18, W=m.w-gap, D=MOD_DEPTH-gap;
+  const box=(w,d,col,du)=>{ const mat=new THREE.MeshLambertMaterial({color:col,transparent:opacity<1,opacity});
+    const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); b.position.set(0,h/2,du); g.add(b); };
+  if(m.kind==='bedbath'){ box(W,D*.5,MODCOL.bed,-D*.25); box(W,D*.5,MODCOL.bath,D*.25); }
+  else if(m.kind==='bath'){ box(W,D*.55,MODCOL.bath,D*.225); box(W,D*.45,MODCOL.cabinet,-D*.275); }
+  else box(W,D,MODCOL[m.kind]);
+  // No roof slab: the room colours stay readable from above. A crisp outline gives each module its edge.
+  const edges=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(W,h,D)),new THREE.LineBasicMaterial({color:0x2b2a24,transparent:true,opacity:.55*opacity}));
+  edges.position.y=h/2; g.add(edges);
+  return g;
+}
+/* Places a home made of modules at (x0,z0); `a` is the direction from the commons. */
+function buildHome(x0,z0,a,mods,wingHint,roofCol,opacity=1,animate=true){
+  const {row,wing}=arrange(mods,wingHint), L=layoutRects(row,wing), t=[-Math.sin(a),Math.cos(a)], r=[Math.cos(a),Math.sin(a)], objs=[];
+  L.rects.forEach((q,i)=>{
+    const cu=(q.u0+q.u1)/2, cv=(q.v0+q.v1)/2, x=x0+cu*t[0]+cv*r[0], z=z0+cu*t[1]+cv*r[1];
+    const g=moduleMesh(q.k,roofCol,opacity); g.position.set(x,H(x,z),z);
+    // A module's width runs along its local X axis: along the row for row rooms, away from the commons for wing rooms.
+    g.rotation.y=i<row.length?Math.atan2(-t[1],t[0]):Math.atan2(-r[1],r[0]);
+    scene.add(g); objs.push(g);
+    if(animate){ g.scale.setScalar(.001); setTimeout(()=>grow(g,700),RM?0:i*260); }
+  });
+  return {objs,U:L.U,V:L.V};
+}
+function bestConfigFor(budget){ let best=null; for(const c of CONFIGS){ const p=priceOf([...c.row,...c.wing]); if(p.total<=budget&&(!best||p.total>best.p.total)) best={c,p}; } return best; }
 function homeSpots(n,avoid){ const c=[];
   [42,55,66].forEach((r,ri)=>{ const k=Math.floor(2*Math.PI*r/24); for(let i=0;i<k;i++){ const a=i*2*Math.PI/k+ri*.21, x=CX+r*Math.cos(a), z=CZ+r*Math.sin(a);
-    if(avoid&&Math.hypot(x-avoid[0],z-avoid[1])<26) continue; c.push([x,z,a]); } });
+    if(avoid&&Math.hypot(x-avoid[0],z-avoid[1])<(avoid[2]||26)) continue; c.push([x,z,a]); } });
   if(n>=c.length) return c; const out=[]; for(let i=0;i<n;i++) out.push(c[Math.floor(i*c.length/n)]); return out; }
-function rectPlot(x0,z0,side,ang,color){ const n=6,pos=[],idx=[],ca=Math.cos(ang),sa=Math.sin(ang),h=side/2;
+function rectPlot(x0,z0,side,ang,color,depth=side){ const n=6,pos=[],idx=[],ca=Math.cos(ang),sa=Math.sin(ang),h=depth/2,hw=side/2;
   const Pt=(u,v)=>[x0+u*ca-v*sa,z0+u*sa+v*ca];
-  for(let i=0;i<=n;i++)for(let j=0;j<=n;j++){ const [x,z]=Pt(-h+side*i/n,-h+side*j/n); pos.push(x,H(x,z)+.4,z); }
+  for(let i=0;i<=n;i++)for(let j=0;j<=n;j++){ const [x,z]=Pt(-h+depth*i/n,-hw+side*j/n); pos.push(x,H(x,z)+.4,z); }
   for(let i=0;i<n;i++)for(let j=0;j<n;j++){ const p=i*(n+1)+j; idx.push(p,p+n+1,p+1,p+1,p+n+1,p+n+2); }
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx);
   const fill=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide}));
-  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([[-h,-h],[h,-h],[h,h],[-h,h],[-h,-h]].map(([u,v])=>v3(Pt(u,v),.7))),new THREE.LineBasicMaterial({color,transparent:true,opacity:0}));
+  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([[-h,-hw],[h,-hw],[h,hw],[-h,hw],[-h,-hw]].map(([u,v])=>v3(Pt(u,v),.7))),new THREE.LineBasicMaterial({color,transparent:true,opacity:0}));
   const grp=new THREE.Group(); grp.add(fill,line); grp.position.y=-4; scene.add(grp); return {grp,fill,line}; }
 function parseBudget(t){ const m=t.toLowerCase().replace(/usd|\$|,|\s/g,'').match(/^(\d+(?:\.\d+)?)(k|m)?$/); if(!m) return 0;
   const v=parseFloat(m[1])*(m[2]==='k'?1e3:m[2]==='m'?1e6:1); return v>=1000?Math.round(v):0; }
@@ -795,42 +856,90 @@ async function run(){
   profile.materials=await askScale('Not much','Deeply',6);
   await say(profile.materials>=7?`Then you'll love the design phase. The families choose materials and style together, and I'll show everyone the options.`:`Good to know. Some people care more about how a place feels than what it's made of.`,400);
 
-  await say(`What kind of home do you see yourself in?`);
-  const typeOf=async()=>{ const lbl=await askChoice(Object.values(HOME_TYPES).map(t=>t.label)); return Object.keys(HOME_TYPES).find(k=>HOME_TYPES[k].label===lbl); };
-  profile.homeType=await typeOf();
-  let budget=0, P=null, built=[], first=true, askB=true;
+  await say(`Now the fun part: your home. Every room here is a module, and they snap together like building blocks. Start from one of these, then shape it however you like.`);
+  const cfgLabel=c=>`${c.label} · ${footOf([...c.row,...c.wing])} m²`;
+  const startPick=await askChoice([...CONFIGS.map(cfgLabel),'Build my own']);
+  const startCfg=CONFIGS.find(c=>cfgLabel(c)===startPick);
+  let mods=startCfg?[...startCfg.row,...startCfg.wing]:['L1'], wingHint=startCfg?startCfg.wing.length:0;
+  const mat=MATERIALS[profile.material];
+  let built=[], plotObj=null;
+  const draw=(animateAll)=>{
+    removeAll(built); built=[]; if(plotObj) scene.remove(plotObj.grp);
+    const P=priceOf(mods), home=buildHome(fx,fz,spot.a,mods,wingHint,mat.roof,1,animateAll);
+    built=home.objs;
+    const w=home.U+4, d=Math.max(home.V+4,P.land/w);
+    plotObj=rectPlot(fx,fz,w,spot.a,'#e9b96a',d); tween(plotObj.grp.position,'y',0,600); tween(plotObj.fill.material,'opacity',.35,600); tween(plotObj.line.material,'opacity',1,600);
+    $('lb-you').textContent=`Your home · ${fmt(P.foot)} m²`; labels['lb-you']=new THREE.Vector3(fx,H(fx,fz)+14,fz); showLabel('lb-you',true);
+    return P;
+  };
+  scene.remove(preview.grp);
+  await camTo({r:95,pitch:.7},1600);
+  await say(startCfg?`Let me assemble it: the living space first, then the rooms around it.`:`Let's start with a compact living and kitchen. Add rooms as you like.`,200);
+  let P=draw(true);
+  await wait(400+mods.length*260);
+  await say(`Now shape it. Add or remove rooms and watch it change on your land. The price updates as you go.`);
+  const summary=()=>{ const p=priceOf(mods), b=bedroomsOf(mods); return `<b>${fmt(p.foot)} m²</b> · ${b} bedroom${b===1?'':'s'} · rough total <b>$${fmt(p.total)}</b> with its land`; };
+  await ask((box,done)=>{
+    const sum=document.createElement('div'); sum.className='msg ai'; sum.style.fontSize='14px';
+    const hint=document.createElement('div'); hint.className='hint'; hint.setAttribute('role','status');
+    const rowA=document.createElement('div'); rowA.className='row';
+    const rowB=document.createElement('div'); rowB.className='row';
+    const rowC=document.createElement('div'); rowC.className='row';
+    const refresh=()=>{ sum.innerHTML=summary(); const lv=mods.find(k=>MODULES[k].kind==='living'); rowB.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.k===lv))); };
+    const change=(next,newWing=null)=>{ if(footOf(next)>MAX_FOOT){ hint.textContent=`That's the largest home in this sketch (${MAX_FOOT} m²). Bigger homes are a conversation for the design phase.`; return; }
+      if(!next.length){ hint.textContent='A home needs at least one room.'; return; }
+      hint.textContent=''; mods=next; wingHint=newWing===null?0:newWing; P=draw(false); refresh(); };
+    [['B2','+ Bedroom with bathroom'],['B','+ Master bedroom'],['C','+ Bathroom & storage']].forEach(([k,label])=>{ const b=button(label,'chip'); b.type='button'; b.onclick=()=>change([...mods,k]); rowA.append(b); });
+    const lvLabel=document.createElement('span'); lvLabel.textContent='Living:'; lvLabel.style.cssText='font-size:13px;color:var(--muted)'; rowB.append(lvLabel);
+    [['L1','Compact'],['L2','Medium'],['L3','Large']].forEach(([k,label])=>{ const b=button(label,'chip'); b.type='button'; b.dataset.k=k;
+      b.onclick=()=>{ const i=mods.findIndex(m=>MODULES[m].kind==='living'); const next=mods.slice(); if(i>=0) next[i]=k; else next.unshift(k); change(next,wingHint&&i>=0&&i<mods.length-wingHint?wingHint:0); }; rowB.append(b); });
+    const undo=button('Remove last room','ghost'); undo.type='button'; undo.onclick=()=>change(mods.slice(0,-1));
+    const ok=button('This is my home'); ok.onclick=()=>{ me(`My home: ${fmt(priceOf(mods).foot)} m², ${bedroomsOf(mods)} bedroom${bedroomsOf(mods)===1?'':'s'}`); done(); };
+    rowC.append(undo,ok); box.append(sum,rowA,rowB,rowC,hint); refresh();
+  });
+  P=priceOf(mods);
+  profile.homeType=startCfg?startCfg.label:'Built my own';
+  profile.modules=mods.map(k=>MODULES[k].name);
+
+  let budget=0, first=true;
   while(true){
-    const wish=HOME_TYPES[profile.homeType].plan();
-    if(askB){
-      await say(!first?`Of course. What budget would you like to try?`:wish?`A home like that, about ${fmt(wish.floor)} m², would come to roughly <b>$${fmt(wish.total)}</b>, including its land and your share of building the commons. Now it's entirely your call: what budget feels comfortable for you?`:`No problem. Let's start from the other side: what budget feels comfortable for you, for land and building together?`);
-      budget=await askBudget();
+    await say(first?`Beautiful. With its land and your share of the commons, this home comes to roughly <b>$${fmt(P.total)}</b>. Now it's entirely your call: what budget feels comfortable for you?`:`Of course. What budget would you like to try?`);
+    budget=await askBudget();
+    const breakdown=p=>`<dl class="est"><dt>Private land, 30-year lease · ${fmt(p.land)} m²</dt><dd>$${fmt(p.landCost)}</dd><dt>Home · ${fmt(p.foot)} m², commons share included</dt><dd>$${fmt(p.build)}</dd><dt class="tot">Rough total</dt><dd class="tot">$${fmt(p.total)}</dd></dl>`;
+    let next;
+    if(P.total<=budget){
+      await say(`Your budget covers it. Here's the rough picture:${breakdown(P)}`,400);
+      next=await askChoice(['That feels right','Shape my home again']);
+    } else {
+      const fit=bestConfigFor(budget);
+      await say(`Your design comes to about $${fmt(P.total)}, which is $${fmt(P.total-budget)} above that budget.`,300);
+      if(fit) await say(`With <b>$${fmt(budget)}</b>, the ${fit.c.label.toLowerCase()} home fits:${breakdown(fit.p)}`,400);
+      else await say(`The smallest home, a studio with its land, starts around $${fmt(priceOf(['B2']).total)}.`,300);
+      next=await askChoice([...(fit?['Use that one']:[]),'Keep my design','Try another budget','Shape my home again']);
+      if(next==='Use that one'){ mods=[...fit.c.row,...fit.c.wing]; wingHint=fit.c.wing.length; P=draw(true); profile.homeType=fit.c.label; profile.modules=mods.map(k=>MODULES[k].name); next='That feels right'; }
+      if(next==='Keep my design') next='That feels right';
     }
-    const fits=!!wish&&wish.total<=budget;
-    P=fits?wish:planForBudget(budget);
-    removeAll(built); built=[];
-    const side=Math.sqrt(P.land), mat=MATERIALS[profile.material];
-    const mine=rectPlot(fx,fz,side,spot.a,'#e9b96a'); built.push(mine.grp);
-    tween(mine.grp.position,'y',0,1300); tween(mine.fill.material,'opacity',.42,1300); tween(mine.line.material,'opacity',1,1300);
-    const hs=house(fx,fz,Math.sqrt(P.foot)/3.4,mat.roof,mat.body,P.storeys); hs.rotation.y=-spot.a; built.push(hs); setTimeout(()=>grow(hs,1100),RM?0:500);
-    [[1,1],[-1,1],[1,-1],[-1,-1]].forEach(([u,v],t)=>{ const ca=Math.cos(spot.a),sa=Math.sin(spot.a),h=side/2*.82, x=fx+u*h*ca-v*h*sa, z=fz+u*h*sa+v*h*ca; const tr=tree(x,z,1.3); built.push(tr); setTimeout(()=>grow(tr,800),RM?0:700+t*120); });
-    labels['lb-you']=new THREE.Vector3(fx,H(fx,fz)+18,fz); showLabel('lb-you',true);
-    const intro=fits?`Your budget covers it. Here's the rough picture:`:wish?`That home would need about $${fmt(wish.total)}. With <b>$${fmt(budget)}</b>, here's what's possible today:`:`Here's what <b>$${fmt(budget)}</b> could look like:`;
-    await say(`${intro}<dl class="est"><dt>Private land, 30-year lease · ${fmt(P.land)} m²</dt><dd>$${fmt(P.landCost)}</dd><dt>Home · ${fmt(P.floor)} m²${P.storeys===2?' over two storeys':''}, commons share included</dt><dd>$${fmt(P.build)}</dd><dt class="tot">Rough total</dt><dd class="tot">$${fmt(P.total)}</dd></dl>`,500);
-    if(!fits&&P.floor>=MAX_FLOOR&&budget>P.total*1.1) await say(`Your budget goes beyond the largest home we've planned so far. That's a good conversation for the design phase.`,300);
     if(first) await say(`Your private land is twice your home's footprint. Everything around it, the green heart and the shared spaces, belongs to all the families together.`,400);
     first=false;
-    const next=await askChoice(['That feels right','Try another budget','Change my home type']);
     if(next==='That feels right') break;
-    if(next==='Change my home type'){ await say(`Sure. Which one?`); profile.homeType=await typeOf(); askB=false; } else askB=true;
+    if(next==='Shape my home again'){
+      await say(`Sure. Add or remove rooms, then tap "This is my home".`);
+      await ask((box,done)=>{ const r=document.createElement('div'); r.className='row';
+        [['B2','+ Bedroom with bathroom'],['B','+ Master bedroom'],['C','+ Bathroom & storage']].forEach(([k,label])=>{ const b=button(label,'chip'); b.type='button'; b.onclick=()=>{ if(footOf([...mods,k])<=MAX_FOOT){ mods=[...mods,k]; wingHint=0; P=draw(false);} }; r.append(b); });
+        const undo=button('Remove last room','ghost'); undo.type='button'; undo.onclick=()=>{ if(mods.length>1){ mods=mods.slice(0,-1); wingHint=0; P=draw(false);} };
+        const ok=button('This is my home'); ok.onclick=()=>{ me(`My home: ${fmt(priceOf(mods).foot)} m²`); done(); };
+        r.append(undo,ok); box.append(r); });
+      P=priceOf(mods); profile.modules=mods.map(k=>MODULES[k].name);
+    }
   }
-  scene.remove(preview.grp);
   await say(`Perfect. Please treat these numbers as rough. Final prices are set once the founding families agree on a shared vision: materials and style, what we build in the commons, shared water and energy, and more.`,700);
 
   /* ---------- 4. The village ---------- */
   stepTo(4); showLabel('lb-you',false); orbTarget.set(CX,30,CZ);
   camTo({tx:CX,ty:0,tz:CZ,r:340,pitch:1.0,yaw:cam.yaw+.6},4000);
-  homeSpots(profile.families-1,[fx,fz]).forEach(([x,z,a],j)=>setTimeout(()=>{ const m=rectPlot(x,z,17.3,a,FAM[j%FAM.length]); tween(m.grp.position,'y',0,1400); tween(m.fill.material,'opacity',.22,1400); tween(m.line.material,'opacity',.65,1400);
-    const hh=house(x,z,3.6,0x8e9a86,0xe8dcc0,j%3===0?2:1); hh.rotation.y=-a; hh.children.forEach(c=>{c.material=c.material.clone();c.material.transparent=true;c.material.opacity=.6;}); grow(hh,1000); },RM?0:j*160));
+  homeSpots(profile.families-1,[fx,fz,34]).forEach(([x,z,a],j)=>setTimeout(()=>{ const c=CONFIGS[1+(j%3)], ms=[...c.row,...c.wing], p=priceOf(ms);
+    const home=buildHome(x,z,a,ms,c.wing.length,0x8e9a86,.7,false); home.objs.forEach(o=>grow(o,1000));
+    const w=home.U+4, m=rectPlot(x,z,w,a,FAM[j%FAM.length],Math.max(home.V+4,p.land/w)); tween(m.grp.position,'y',0,1400); tween(m.fill.material,'opacity',.22,1400); tween(m.line.material,'opacity',.65,1400); },RM?0:j*160));
   await say(`Now picture the ${profile.families-1} other families you imagined, each adding their own answers to this page. All the homes and shared buildings fit within the ${fmt(VILLAGE_BUILDABLE)} m² the law allows, and the green heart stays open.`,900);
   await say(`When two wishes collide, I don't pick a winner. I show the families the options and the trade-offs, and they decide together.`,600);
   showLabel('lb-vision',true);
@@ -850,11 +959,11 @@ async function run(){
     $('card-vision').textContent=`My ideal village: ${profile.vision}`;
     const bits=[ profile.kids==='No children'?'No children':`${profile.kids} ${profile.kids==='1'?'child':'children'}${profile.ages?` (${profile.ages})`:''}`,
       `Village of about ${profile.families} families`, `Food ${profile.food}/10`, profile.meat==='No, plant-based'?'Plant-based':profile.meat==='Sometimes'?'Eats meat sometimes':'Eats meat',
-      `${MATERIALS[profile.material].label} home`, profile.privacy<=4?'Big-family spirit':profile.privacy>=7?'Values privacy':'Balance of both' ];
+      `${MATERIALS[profile.material].label} roof · ${profile.homeType}`, profile.privacy<=4?'Big-family spirit':profile.privacy>=7?'Values privacy':'Balance of both' ];
     if(profile.film) bits.push(`Film: ${profile.film}`);
     $('card-profile').textContent=bits.join(' · ');
     const cw=$('card-wishes'); cw.innerHTML=''; profile.spaces.forEach(k=>{const s=document.createElement('span');s.className='chip';s.setAttribute('aria-pressed','true');s.textContent=SPACES[k];cw.append(s);});
-    $('cf-plot').textContent=`${fmt(P.land)} m²`; $('cf-area').textContent=`${fmt(P.floor)} m²${P.storeys===2?' · 2 fl.':''}`; $('cf-hub').textContent=`$${fmt(P.total)}`;
+    $('cf-plot').textContent=`${fmt(P.land)} m²`; $('cf-area').textContent=`${fmt(P.floor)} m² · ${bedroomsOf(mods)} bed`; $('cf-hub').textContent=`$${fmt(P.total)}`;
     $('card').classList.add('on'); $('card-close').focus();
   };
   const DIRS=['east','south-east','south','south-west','west','north-west','north','north-east'];
@@ -873,7 +982,7 @@ async function run(){
         visionFollowUpQuestion:profile.visionFollowUpQuestion, visionFollowUp:profile.visionFollowUp||undefined, childhood:profile.wish||undefined,
         families:profile.families, familiesAnswer:profile.familiesAnswer, privacy:profile.privacy, spaces:profile.spaces.map(k=>SPACES[k]),
         idea:profile.idea||undefined, food:profile.food, meat:profile.meat, meatOk:profile.meatOk, material:MATERIALS[profile.material].label,
-        materials:profile.materials, homeType:HOME_TYPES[profile.homeType].label, wishes:[...wishes].map(w=>WISH[w]),
+        materials:profile.materials, homeType:profile.homeType, modules:profile.modules, wishes:[...wishes].map(w=>WISH[w]),
         direction:DIRS[((Math.round(spot.a/(Math.PI/4))%8)+8)%8] },
       plan:{ budget, land:P.land, floor:P.floor, storeys:P.storeys, total:P.total }, utm };
   };
