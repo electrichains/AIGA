@@ -90,6 +90,30 @@ body{background:var(--night);color:var(--text);font-family:var(--body);font-size
 .card .profile{font-size:13px;color:var(--muted);line-height:1.5;margin:0 0 6px}
 .label.space{color:var(--text);border-color:var(--sun)}
 .label.vision{font-family:var(--display);font-size:14px;letter-spacing:0;text-transform:none;white-space:normal;width:max-content;max-width:260px;text-align:center;color:var(--text);border-color:var(--sun);background:rgba(12,23,20,.82);line-height:1.35}
+/* style swipe deck */
+#swipe{position:fixed;inset:0;z-index:9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;background:rgba(6,12,10,.8);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.sw-stack{position:relative;width:min(340px,86vw);aspect-ratio:3/4.2;max-height:60vh}
+.sw-card{position:absolute;inset:0;border-radius:22px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.5);background:var(--night-2);touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .35s}
+.sw-card.next{transform:scale(.94) translateY(14px);opacity:.7;pointer-events:none}
+.sw-face{position:absolute;inset:0}
+.sw-face img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+.sw-ill{position:absolute;left:0;top:14%;width:100%;height:auto}
+.sw-info{position:absolute;left:0;right:0;bottom:0;padding:70px 18px 16px;background:linear-gradient(transparent,rgba(8,14,12,.94))}
+.sw-info h3{font-family:var(--display);font-weight:400;font-size:26px;margin:0 0 4px;color:#fff;text-wrap:balance}
+.sw-info p{margin:0;font-size:14px;line-height:1.45;color:#e9e3d3}
+.sw-stamp{position:absolute;top:22px;padding:6px 12px;border:3px solid;border-radius:10px;font:700 22px var(--body);letter-spacing:.08em;opacity:0;pointer-events:none}
+.sw-stamp.yes{left:18px;color:#a6e3a1;border-color:#a6e3a1;transform:rotate(-12deg)}
+.sw-stamp.no{right:18px;color:#f2a08e;border-color:#f2a08e;transform:rotate(12deg)}
+.sw-btns{display:flex;gap:28px}
+.sw-btns button{width:62px;height:62px;border-radius:50%;border:1px solid var(--line);font-size:24px;cursor:pointer;background:var(--night-2);color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.4);transition:transform .15s}
+.sw-btns button:active{transform:scale(.92)}
+#sw-yes{background:var(--sun);color:var(--night);border-color:var(--sun)}
+.sw-eye,.sw-note{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0;text-align:center}
+.sw-note{text-transform:none;letter-spacing:.02em}
+.card .c-style{display:flex;gap:12px;align-items:center;margin:4px 0 12px}
+.c-style .thumb{position:relative;width:60px;height:80px;border-radius:10px;overflow:hidden;flex:none}
+.c-style span{font-size:13px;color:var(--muted)}
+.c-style b{display:block;color:var(--text);font-family:var(--display);font-weight:400;font-size:17px}
 .card .vision{font-size:14px;color:var(--text);font-style:italic;line-height:1.5;margin:0 0 10px}
 .hint{font-size:13px;color:#e3a68f;min-height:0}
 .apply-form{display:flex;flex-direction:column;gap:10px}
@@ -240,10 +264,17 @@ input::placeholder{color:#6f786b}
 <div class="label place" id="mp-Uluwatu">Uluwatu</div>
 <div class="label place" id="mp-bali" style="font-size:13px;letter-spacing:.4em;color:var(--text)">Bali</div>
 <div id="fade"></div>
+<div id="swipe" hidden role="dialog" aria-modal="true" aria-label="Find your home style">
+  <p class="sw-eye">Find your style · <span id="sw-count"></span></p>
+  <div class="sw-stack" id="sw-stack"></div>
+  <div class="sw-btns"><button id="sw-no" type="button" aria-label="Not for me">✕</button><button id="sw-yes" type="button" aria-label="I love this style">♥</button></div>
+  <p class="sw-note">Style inspiration · the final design is chosen together</p>
+</div>
 
 <div id="card" role="dialog" aria-modal="true" aria-labelledby="card-title">
   <div class="card">
     <img id="card-img" alt="Your plot on the land">
+    <div class="c-style" id="card-style" hidden></div>
     <div class="c-body">
       <div class="c-eye">AIGA Village · Nusa Dua · my dream plot (draft)</div>
       <h2 id="card-title"></h2>
@@ -630,11 +661,11 @@ function layoutRects(row,wing){
 const MODCOL={living:0xa8bd8c, bed:0xc4836f, bath:0x7d919f, cabinet:0x9a6f55};
 function moduleMesh(k,roofCol,opacity=1){
   const m=MODULES[k], g=new THREE.Group(), h=3.2, gap=.18, W=m.w-gap, D=MOD_DEPTH-gap;
-  const box=(w,d,col,du)=>{ const mat=new THREE.MeshLambertMaterial({color:col,transparent:opacity<1,opacity});
-    const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); b.position.set(0,h/2,du); g.add(b); };
-  if(m.kind==='bedbath'){ box(W,D*.5,MODCOL.bed,-D*.25); box(W,D*.5,MODCOL.bath,D*.25); }
-  else if(m.kind==='bath'){ box(W,D*.55,MODCOL.bath,D*.225); box(W,D*.45,MODCOL.cabinet,-D*.275); }
-  else box(W,D,MODCOL[m.kind]);
+  const box=(w,d,col,du,role)=>{ const mat=new THREE.MeshLambertMaterial({color:col,transparent:opacity<1,opacity});
+    const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); b.position.set(0,h/2,du); b.userData.role=role; g.add(b); };
+  if(m.kind==='bedbath'){ box(W,D*.5,MODCOL.bed,-D*.25,'main'); box(W,D*.5,MODCOL.bath,D*.25,'wet'); }
+  else if(m.kind==='bath'){ box(W,D*.55,MODCOL.bath,D*.225,'wet'); box(W,D*.45,MODCOL.cabinet,-D*.275,'accent'); }
+  else box(W,D,MODCOL[m.kind],0,'main');
   // No roof slab: the room colours stay readable from above. A crisp outline gives each module its edge.
   const edges=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(W,h,D)),new THREE.LineBasicMaterial({color:0x2b2a24,transparent:true,opacity:.55*opacity}));
   edges.position.y=h/2; g.add(edges);
@@ -679,7 +710,76 @@ function trim(p,target){ let lo=.03,hi=1,f=1; const da=(p.a1-p.a0)/(p.outer.leng
 
 $('enter').addEventListener('click',run,{once:true});
 
-const MATERIALS={bamboo:{label:'Bamboo',body:0xd8c48f,roof:0x8a6a3a},stone:{label:'Local stone',body:0xb9b2a3,roof:0x6f6a60},earth:{label:'Rammed earth',body:0xc79a72,roof:0x8e5a3c},timber:{label:'Timber',body:0xb88a5c,roof:0x5c4a3a},open:{label:'Not sure yet',body:0xe8dcc0,roof:0xc9894f}};
+/* Home styles for the swipe deck. A photo at images/styles/<key>.jpg replaces the illustration automatically. */
+const STYLES=[
+  {key:'tropical-modern',name:'Tropical Modern',line:'Flat white roofs, walls of glass, warm teak inside.',tags:['modern','open','light'],wall:0xe9e6df,accent:0xa57a52,roof:'flat'},
+  {key:'bamboo',name:'Bamboo Sanctuary',line:'Woven bamboo and curved roofs, living inside the green.',tags:['natural','warm','handmade'],wall:0xd2b77c,accent:0x7a5a2f,roof:'pitched'},
+  {key:'limestone',name:'Bukit Limestone',line:'Carved local limestone, cool and solid, made for the dry south.',tags:['natural','local','solid'],wall:0xe3d9c3,accent:0x9c8f78,roof:'flat'},
+  {key:'joglo',name:'Balinese Joglo',line:'Carved teak and steep thatched roofs, centuries of island craft.',tags:['traditional','warm','handmade'],wall:0xb07a4f,accent:0x6b4a2e,roof:'pitched'},
+  {key:'earth',name:'Rammed Earth Minimal',line:'Thick earth walls in layers of ochre, quiet and cool.',tags:['natural','minimal','solid'],wall:0xc98f62,accent:0x8a5a3c,roof:'flat'},
+  {key:'white-timber',name:'White & Timber',line:'Lime-washed walls, pale wood, light in every room.',tags:['light','minimal','modern'],wall:0xf1eee7,accent:0xc49a6c,roof:'pitched'},
+  {key:'pavilion',name:'Open Pavilion',line:'Roofs on slender columns, rooms that open to the garden.',tags:['open','traditional','light'],wall:0xd9c9a8,accent:0x5f4a36,roof:'pitched'},
+  {key:'steel-glass',name:'Steel & Glass',line:'Dark steel frames and big glass, a sharp modern edge.',tags:['modern','bold','open'],wall:0x5b6066,accent:0x2f3337,roof:'flat'},
+];
+const STYLE_BY=Object.fromEntries(STYLES.map(st=>[st.key,st]));
+const TASTE={natural:'warm natural materials',modern:'clean modern lines',open:'homes that open onto the garden',light:'light-filled rooms',traditional:'Balinese craft and tradition',handmade:'things made by hand',minimal:'quiet, minimal spaces',solid:'thick, cool walls',local:'local materials',warm:'warmth',bold:'a bold edge'};
+const hexc=n=>'#'+n.toString(16).padStart(6,'0');
+function styleFace(st){
+  const w=hexc(st.wall), a=hexc(st.accent);
+  const roof=st.roof==='pitched'?`<polygon points="44,92 150,40 256,92" fill="${a}"/>`:`<rect x="48" y="84" width="204" height="12" rx="2" fill="${a}"/>`;
+  return `<div class="sw-face" style="background:linear-gradient(180deg,#f2c27c 0%,#d9a37a 30%,#7fa3a8 62%,#2d4a31 62%,#1d3424 100%)">
+    <svg class="sw-ill" viewBox="0 0 300 200" aria-hidden="true">
+      <circle cx="232" cy="46" r="18" fill="#fff1c9" opacity=".85"/>
+      <path d="M26 124 C30 90 34 70 40 52 M40 52 C28 46 16 48 8 56 M40 52 C50 40 64 38 74 44 M40 52 C36 38 26 30 14 30 M40 52 C54 50 64 56 70 66" stroke="#1d3424" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+      ${roof}
+      <rect x="62" y="96" width="176" height="28" fill="${w}"/>
+      <rect x="78" y="102" width="26" height="22" fill="#f6d68f"/><rect x="114" y="102" width="40" height="22" fill="#f6d68f"/><rect x="164" y="102" width="26" height="22" fill="#f6d68f"/><rect x="200" y="102" width="22" height="22" fill="#f6d68f" opacity=".8"/>
+      <rect x="40" y="123" width="220" height="4" fill="${a}" opacity=".6"/>
+    </svg>
+    <img src="images/styles/${st.key}.jpg" alt="${st.name} home" onerror="this.remove()" decoding="async">
+  </div>`;
+}
+/* The swipe deck: drag, the ♥/✕ buttons, or the arrow keys. Resolves with the liked and passed styles. */
+function swipeDeck(){ return new Promise(resolve=>{
+  const box=$('swipe'), stack=$('sw-stack'), liked=[], passed=[]; let i=0, current=null;
+  const key=e=>{ if(e.key==='ArrowRight') decide(true); if(e.key==='ArrowLeft') decide(false); };
+  const render=()=>{
+    stack.innerHTML=''; $('sw-count').textContent=`${i+1} of ${STYLES.length}`;
+    [i+1,i].forEach((k,n)=>{ if(k>=STYLES.length) return; const st=STYLES[k], c=document.createElement('div');
+      c.className='sw-card'+(n===0?' next':'');
+      c.innerHTML=styleFace(st)+`<div class="sw-stamp yes">LOVE</div><div class="sw-stamp no">NOPE</div><div class="sw-info"><h3>${st.name}</h3><p>${st.line}</p></div>`;
+      stack.append(c); if(n===1) bind(c); });
+  };
+  const decide=(like)=>{ const c=current; if(!c) return; current=null;
+    (like?liked:passed).push(STYLES[i]);
+    try{ if(like&&navigator.vibrate) navigator.vibrate(12); }catch{}
+    c.querySelector(like?'.yes':'.no').style.opacity=1;
+    c.style.transition='transform .45s ease, opacity .45s'; c.style.transform=`translate(${like?640:-640}px,-30px) rotate(${like?22:-22}deg)`; c.style.opacity=0;
+    i++;
+    setTimeout(()=>{ if(i>=STYLES.length){ box.hidden=true; document.removeEventListener('keydown',key); resolve({liked,passed}); } else render(); },RM?0:300);
+  };
+  const bind=c=>{ current=c; let x0=null, dx=0; const yes=c.querySelector('.yes'), no=c.querySelector('.no');
+    c.addEventListener('pointerdown',e=>{ x0=e.clientX; dx=0; c.setPointerCapture(e.pointerId); c.style.transition='none'; });
+    c.addEventListener('pointermove',e=>{ if(x0===null) return; dx=e.clientX-x0; c.style.transform=`translateX(${dx}px) rotate(${dx*.06}deg)`; yes.style.opacity=Math.max(0,dx/100); no.style.opacity=Math.max(0,-dx/100); });
+    const up=()=>{ if(x0===null) return; x0=null; if(Math.abs(dx)>90) decide(dx>0); else { c.style.transition=''; c.style.transform=''; yes.style.opacity=0; no.style.opacity=0; } };
+    c.addEventListener('pointerup',up); c.addEventListener('pointercancel',up);
+  };
+  $('sw-yes').onclick=()=>decide(true); $('sw-no').onclick=()=>decide(false);
+  document.addEventListener('keydown',key);
+  box.hidden=false; render(); setTimeout(()=>$('sw-yes').focus(),50);
+}); }
+/* The style that best matches everything they liked. */
+function topStyle(liked){
+  if(!liked.length) return STYLES[0];
+  const count={}; liked.forEach(st=>st.tags.forEach(t=>count[t]=(count[t]||0)+1));
+  return liked.map(st=>({st,score:st.tags.reduce((s,t)=>s+count[t],0)})).sort((a,b)=>b.score-a.score)[0].st;
+}
+function tasteLine(liked){
+  const count={}; liked.forEach(st=>st.tags.forEach(t=>count[t]=(count[t]||0)+1));
+  const top=Object.entries(count).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([t])=>TASTE[t]);
+  return top.length>1?`${top[0]} and ${top[1]}`:top[0];
+}
+const shade=(n,f)=>{ const c=new THREE.Color(n); c.multiplyScalar(f); return c; };
 function askBudget(){ return ask((box,done)=>{
   const chips=document.createElement('div'); chips.className='row';
   [250000,480000,720000,1000000].forEach(v=>{ const c=button('$'+fmt(v),'chip'); c.type='button'; c.onclick=()=>{me('$'+fmt(v)); done(v);}; chips.append(c); });
@@ -874,9 +974,13 @@ async function run(){
   if(!reasons.length) reasons.push('it balances light, quiet and access');
   await say(`This corner fits you: ${reasons.join(', and ')}. It's yours to shape.`,500);
 
-  await say(`What would you like your home to be made of?`);
-  const matLabel=await askChoice(Object.values(MATERIALS).map(m=>m.label));
-  profile.material=Object.keys(MATERIALS).find(k=>MATERIALS[k].label===matLabel);
+  await say(`Before we build, let's find your style. I'll show you a few homes. Swipe right on the ones you love, left on the ones you don't.`);
+  await ask((box,done)=>{ const b=button('Show me the homes'); box.append(b); b.onclick=()=>done(); });
+  const deck=await swipeDeck();
+  profile.stylesLiked=deck.liked.map(st=>st.name); profile.stylesPassed=deck.passed.map(st=>st.name);
+  const sty=topStyle(deck.liked); profile.style=sty.key;
+  me(deck.liked.length?`♥ ${profile.stylesLiked.join(', ')}`:'None of these');
+  await say(deck.liked.length?`I can see your taste: you love ${tasteLine(deck.liked)}. Let's start from <b>${sty.name}</b>.`:`None of them felt right, and that tells me something too. I'll start from Tropical Modern, and the families will explore many more styles together.`,500);
   await say(`And how much does the choice of materials matter to you?`);
   profile.materials=await askScale('Not much','Deeply',6);
   await say(profile.materials>=7?`Then you'll love the design phase. The families choose materials and style together, and I'll show everyone the options.`:`Good to know. Some people care more about how a place feels than what it's made of.`,400);
@@ -886,12 +990,14 @@ async function run(){
   const startPick=await askChoice([...CONFIGS.map(cfgLabel),'Build my own']);
   const startCfg=CONFIGS.find(c=>cfgLabel(c)===startPick);
   let mods=startCfg?[...startCfg.row,...startCfg.wing]:['L1'], wingHint=startCfg?startCfg.wing.length:0;
-  const mat=MATERIALS[profile.material];
-  let built=[], plotObj=null;
+  let built=[], plotObj=null, styled=false;
+  const paint=(animate)=>{ const target={main:new THREE.Color(sty.wall),wet:shade(sty.wall,.86),accent:new THREE.Color(sty.accent)};
+    built.forEach(o=>o.traverse(m=>{ if(!m.isMesh||!m.userData.role) return; const c=target[m.userData.role];
+      if(animate){ tween(m.material.color,'r',c.r,1300); tween(m.material.color,'g',c.g,1300); tween(m.material.color,'b',c.b,1300); } else m.material.color.copy(c); })); };
   const draw=(animateAll)=>{
     removeAll(built); built=[]; if(plotObj) scene.remove(plotObj.grp);
-    const P=priceOf(mods), home=buildHome(fx,fz,spot.a,mods,wingHint,mat.roof,1,animateAll);
-    built=home.objs;
+    const P=priceOf(mods), home=buildHome(fx,fz,spot.a,mods,wingHint,sty.accent,1,animateAll);
+    built=home.objs; if(styled) paint(false);
     const w=home.U+4, d=Math.max(home.V+4,P.land/w);
     plotObj=rectPlot(fx,fz,w,spot.a,'#e9b96a',d); tween(plotObj.grp.position,'y',0,600); tween(plotObj.fill.material,'opacity',.35,600); tween(plotObj.line.material,'opacity',1,600);
     $('lb-you').textContent=`Your home · ${fmt(P.foot)} m²`; labels['lb-you']=new THREE.Vector3(fx,H(fx,fz)+14,fz); showLabel('lb-you',true);
@@ -923,6 +1029,9 @@ async function run(){
     rowC.append(undo,ok); box.append(sum,rowA,rowB,rowC,hint); refresh();
   });
   P=priceOf(mods);
+  await say(`You built that. Now let me dress it in your style: <b>${sty.name}</b>.`,200);
+  styled=true; paint(true); await wait(1500);
+  await say(`There it is. Your home, on your land.`,500);
   profile.homeType=startCfg?startCfg.label:'Built my own';
   profile.modules=mods.map(k=>MODULES[k].name);
 
@@ -979,12 +1088,13 @@ async function run(){
   const openCard=()=>{
     idleSpin=0; renderer.render(scene,camera);
     $('card-img').src=renderer.domElement.toDataURL('image/jpeg',.85);
+    $('card-style').innerHTML=`<div class="thumb">${styleFace(sty)}</div><div><span>My style</span><b>${sty.name}</b></div>`; $('card-style').hidden=false;
     $('card-title').textContent=`${name}'s place in AIGA Village`;
     $('card-quote').textContent=profile.belief?`“${profile.belief}”`:''; $('card-quote').hidden=!profile.belief;
     $('card-vision').textContent=`My ideal village: ${profile.vision}`;
     const bits=[ profile.kids==='No children'?'No children':`${profile.kids} ${profile.kids==='1'?'child':'children'}${profile.ages?` (${profile.ages})`:''}`,
       `Village of about ${profile.families} families`, `Food ${profile.food}/10`, profile.meat==='No, plant-based'?'Plant-based':profile.meat==='Sometimes'?'Eats meat sometimes':'Eats meat',
-      `${MATERIALS[profile.material].label} roof · ${profile.homeType}`, profile.privacy<=4?'Big-family spirit':profile.privacy>=7?'Values privacy':'Balance of both' ];
+      `${sty.name} · ${profile.homeType}`, profile.privacy<=4?'Big-family spirit':profile.privacy>=7?'Values privacy':'Balance of both' ];
     if(profile.film) bits.push(`Film: ${profile.film}`);
     $('card-profile').textContent=bits.join(' · ');
     const cw=$('card-wishes'); cw.innerHTML=''; profile.spaces.forEach(k=>{const s=document.createElement('span');s.className='chip';s.setAttribute('aria-pressed','true');s.textContent=SPACES[k];cw.append(s);});
@@ -1006,7 +1116,7 @@ async function run(){
       profile:{ belief:profile.belief, film:profile.film||undefined, kids:profile.kids, ages:profile.ages||undefined, vision:profile.vision,
         visionFollowUpQuestion:profile.visionFollowUpQuestion, visionFollowUp:profile.visionFollowUp||undefined, childhood:profile.wish||undefined,
         families:profile.families, familiesAnswer:profile.familiesAnswer, privacy:profile.privacy, spaces:profile.spaces.map(k=>SPACES[k]),
-        idea:profile.idea||undefined, food:profile.food, meat:profile.meat, meatOk:profile.meatOk, material:MATERIALS[profile.material].label,
+        idea:profile.idea||undefined, food:profile.food, meat:profile.meat, meatOk:profile.meatOk, material:sty.name, stylesLiked:profile.stylesLiked, stylesPassed:profile.stylesPassed,
         materials:profile.materials, homeType:profile.homeType, modules:profile.modules, wishes:[...wishes].map(w=>WISH[w]),
         direction:DIRS[((Math.round(spot.a/(Math.PI/4))%8)+8)%8] },
       plan:{ budget, land:P.land, floor:P.floor, storeys:P.storeys, total:P.total }, utm };

@@ -47,6 +47,9 @@ const sample = {
     homeType: '2 bedrooms',
     modules: ['Bathroom & storage', 'Master bedroom', 'Living & kitchen, large', 'Bedroom with bathroom'],
     wishes: ['Morning sun'],
+    material: 'Tropical Modern',
+    stylesLiked: ['Tropical Modern', 'Bukit Limestone'],
+    stylesPassed: ['Steel & Glass'],
   },
   plan: { budget: 480000, land: 300, floor: 150, storeys: 1, total: 480000 },
 };
@@ -74,6 +77,8 @@ describe('Applications to J-Mission', () => {
     assert.equal(attrs.aiga_budget_usd, 480000);
     assert.equal(attrs.aiga_families_envisioned, 20);
     assert.equal(attrs.aiga_home_modules, 'Bathroom & storage, Master bedroom, Living & kitchen, large, Bedroom with bathroom');
+    assert.equal(attrs.aiga_style, 'Tropical Modern');
+    assert.equal(attrs.aiga_styles_liked, 'Tropical Modern, Bukit Limestone');
     assert.ok(!('aiga_film' in attrs), 'empty answers are left out');
     for (const key of Object.keys(attrs)) assert.ok(key.length <= 60, key);
   });
