@@ -730,13 +730,14 @@ $('enter').addEventListener('click',run,{once:true});
 /* Home styles for the swipe deck. A photo at images/styles/<key>.jpg replaces the illustration automatically. */
 const STYLES=[
   {key:'tropical-modern',name:'Tropical Modern',line:'Flat white roofs, walls of glass, warm teak inside.',tags:['modern','open','light'],wall:0xe9e6df,accent:0xa57a52,roof:'flat'},
+  {key:'glass-pavilion',name:'Glass Pavilion',line:'Concrete frames and floor-to-ceiling glass that glow at dusk.',tags:['modern','minimal','open'],wall:0xcfcac2,accent:0x3a3a38,roof:'flat'},
   {key:'bamboo',name:'Bamboo Sanctuary',line:'Woven bamboo and curved roofs, living inside the green.',tags:['natural','warm','handmade'],wall:0xd2b77c,accent:0x7a5a2f,roof:'pitched'},
-  {key:'limestone',name:'Bukit Limestone',line:'Carved local limestone, cool and solid, made for the dry south.',tags:['natural','local','solid'],wall:0xe3d9c3,accent:0x9c8f78,roof:'flat'},
-  {key:'joglo',name:'Balinese Joglo',line:'Carved teak and steep thatched roofs, centuries of island craft.',tags:['traditional','warm','handmade'],wall:0xb07a4f,accent:0x6b4a2e,roof:'pitched'},
-  {key:'earth',name:'Rammed Earth Minimal',line:'Thick earth walls in layers of ochre, quiet and cool.',tags:['natural','minimal','solid'],wall:0xc98f62,accent:0x8a5a3c,roof:'flat'},
-  {key:'white-timber',name:'White & Timber',line:'Lime-washed walls, pale wood, light in every room.',tags:['light','minimal','modern'],wall:0xf1eee7,accent:0xc49a6c,roof:'pitched'},
-  {key:'pavilion',name:'Open Pavilion',line:'Roofs on slender columns, rooms that open to the garden.',tags:['open','traditional','light'],wall:0xd9c9a8,accent:0x5f4a36,roof:'pitched'},
-  {key:'steel-glass',name:'Steel & Glass',line:'Dark steel frames and big glass, a sharp modern edge.',tags:['modern','bold','open'],wall:0x5b6066,accent:0x2f3337,roof:'flat'},
+  {key:'timber-louvres',name:'Timber Louvres',line:'Layers of teak louvres that filter the sun and the breeze.',tags:['natural','warm','handmade'],wall:0x7a5536,accent:0xb5743d,roof:'flat'},
+  {key:'white-terracotta',name:'White & Terracotta',line:'Lime-white walls, a terracotta roof and local stone above the rice fields.',tags:['light','traditional','local'],wall:0xf1eee7,accent:0xb4623a,roof:'pitched'},
+  {key:'glass-timber',name:'Glass & Timber',line:'A light timber frame, glass all around, a terrace in the trees.',tags:['modern','light','open'],wall:0x9a7856,accent:0x4b3a2c,roof:'flat'},
+  {key:'joglo',name:'Balinese Joglo',line:'Thatched roofs, carved timber and bamboo, centuries of island craft.',tags:['traditional','handmade','natural'],wall:0xb07a4f,accent:0x6b4a2e,roof:'pitched'},
+  {key:'louvre-villa',name:'Louvre Villa',line:'A dark frame wrapped in sliding teak screens, opening onto a long pool.',tags:['modern','bold','warm'],wall:0x5e4430,accent:0xa86a3a,roof:'flat'},
+  {key:'jungle-village',name:'Hidden in the Jungle',line:'Small homes tucked under the canopy, linked by garden paths.',tags:['natural','minimal','local'],wall:0x8a6a48,accent:0x5a4630,roof:'flat'},
 ];
 const STYLE_BY=Object.fromEntries(STYLES.map(st=>[st.key,st]));
 const TASTE={natural:'warm natural materials',modern:'clean modern lines',open:'homes that open onto the garden',light:'light-filled rooms',traditional:'Balinese craft and tradition',handmade:'things made by hand',minimal:'quiet, minimal spaces',solid:'thick, cool walls',local:'local materials',warm:'warmth',bold:'a bold edge'};
@@ -963,6 +964,7 @@ async function run(){
   showLabel('lb-sun',false); tween(arc.material,'opacity',0,1200); tween(sun.material,'opacity',0,1200); sunRun=false; tween(uni.uWarm,'value',.3,1500);
   uni.uSun.value.set(.5,.75,-.2).normalize();
   thinking=true; $('gorb').classList.add('thinking');
+  STYLES.forEach(st=>{ const im=new Image(); im.decoding='async'; im.src=`images/styles/${st.key}.jpg`; });
   await say(`Let me look around the village…`,300);
   const cand=[...Array(12).keys()].map(i=>{ const a=(i+.5)*Math.PI/6, r=wishes.has('commons')?42:55, x=CX+r*Math.cos(a), z=CZ+r*Math.sin(a);
     return {i,a,r,x,z,road:Math.round(Math.min(...roadPts.map(([px,pz])=>Math.hypot(px-x,pz-z)))),green:Math.round(reach(a)-VZ)}; });
