@@ -76,6 +76,7 @@ body{background:var(--night);color:var(--text);font-family:var(--body);font-size
 .mic{flex:none;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--text);display:grid;place-items:center;cursor:pointer;padding:0}
 .mic:hover{border-color:var(--sun)}.mic.rec{background:#c8553d;border-color:#c8553d;color:#fff;animation:breathe 1.2s ease-in-out infinite}
 .mic.busy{opacity:.5;pointer-events:none}
+.hint.talk{color:var(--muted);min-height:0}.hint.talk:empty{display:none}
 .g-prog span{font-size:11px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
 #log{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
 .msg{max-width:92%;line-height:1.55;font-size:15px}
@@ -586,35 +587,82 @@ async function playClip(clip){
     src.start(); });
 }
 $('voice-btn').addEventListener('click',()=>{ if(voiceOn){ voiceOn=false; stopVoice(); $('voice-btn').setAttribute('aria-pressed','false'); } else unlockVoice(); });
-/* Answer by voice: record, transcribe with ElevenLabs, and put the words in the box so they can check them before sending. */
-function micButton(inp){
-  const b=document.createElement('button'); b.type='button'; b.className='mic'; b.setAttribute('aria-label','Answer by voice'); b.title='Answer by voice';
-  b.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
-  const ph=inp.placeholder, miss="I couldn't catch that. Try again, or type it.";
-  let rec=null, timer=0;
-  b.onclick=async()=>{
-    if(rec){ rec.stop(); return; }
-    stopVoice();
-    let stream; try{ stream=await navigator.mediaDevices.getUserMedia({audio:true}); }catch{ inp.placeholder='The microphone is blocked. You can type instead.'; return; }
-    const type=['audio/webm;codecs=opus','audio/mp4','audio/webm','audio/ogg'].find(t=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t))||'';
-    const chunks=[]; rec=new MediaRecorder(stream,type?{mimeType:type}:undefined);
-    rec.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
-    rec.onstop=async()=>{
-      clearTimeout(timer); stream.getTracks().forEach(t=>t.stop());
-      const mime=(rec.mimeType||type||'audio/webm').split(';')[0]; rec=null;
-      b.classList.remove('rec'); b.classList.add('busy'); b.setAttribute('aria-label','Answer by voice'); inp.placeholder='Writing down your words…';
-      try{
-        const r=await fetch('/api/asara/transcribe',{method:'POST',headers:{'Content-Type':mime},body:new Blob(chunks,{type:mime})});
-        const d=r.ok?await r.json():null;
-        if(d&&d.text){ inp.value=((inp.value?inp.value+' ':'')+d.text).slice(0,inp.maxLength); inp.placeholder=ph; } else inp.placeholder=miss;
-      }catch{ inp.placeholder=miss; }
-      b.classList.remove('busy'); inp.focus();
-    };
-    rec.start(); b.classList.add('rec'); b.setAttribute('aria-label','Stop recording'); inp.placeholder='Listening… tap the mic again when you are done';
-    timer=setTimeout(()=>{ if(rec) rec.stop(); },60000);
+/* Talk with Asara. The first tap on a mic starts "talk mode": after every question Asara listens on her own,
+   notices when the person stops speaking, writes down their words with ElevenLabs and carries on. Typing or
+   tapping an answer always works too, and cancels the listening for that question. */
+let talkMode=false, micStream=null, listening=null;
+const MIC_SVG='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+const canListen=()=>voiceAvailable&&!offline&&!!(navigator.mediaDevices&&window.MediaRecorder);
+async function getMic(){
+  if(micStream&&micStream.getAudioTracks().some(t=>t.readyState==='live')) return micStream;
+  micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+  return micStream;
+}
+function stopListening(send){ if(listening) listening.stop(send); }
+function endTalk(){ talkMode=false; stopListening(false); if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; } }
+async function listen(ui,onText){
+  if(listening) return;
+  stopVoice();
+  let stream; try{ stream=await getMic(); }catch{ talkMode=false; ui.status('The microphone is blocked. You can type instead.'); return; }
+  if(!ui.alive()) return;
+  const type=['audio/webm;codecs=opus','audio/mp4','audio/webm','audio/ogg'].find(t=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t))||'';
+  const rec=new MediaRecorder(stream,type?{mimeType:type}:undefined), chunks=[];
+  rec.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
+  // Voice activity: learn the room's noise for a moment, then wait for speech followed by a pause.
+  let an=null, node=null, buf=null;
+  try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); node=actx.createMediaStreamSource(stream); an=actx.createAnalyser(); an.fftSize=1024; node.connect(an); buf=new Float32Array(an.fftSize); }catch{ an=null; }
+  const t0=performance.now(); let floor=0, samples=0, spoke=0, lastVoice=0, send=true, manual=false, tick=0;
+  const state={ stop(s=true,byHand=false){ send=s; manual=byHand; if(rec.state!=='inactive') rec.stop(); } };
+  listening=state;
+  const check=()=>{
+    if(rec.state==='inactive') return;
+    if(an){ an.getFloatTimeDomainData(buf); let sum=0; for(let i=0;i<buf.length;i++) sum+=buf[i]*buf[i];
+      const rms=Math.sqrt(sum/buf.length), now=performance.now();
+      if(now-t0<350){ samples++; floor+=(rms-floor)/samples; }
+      else{ const th=Math.max(0.012,Math.min(floor,0.04)*2.6);
+        if(rms>th){ if(!spoke) spoke=now; lastVoice=now; }
+        if(spoke&&lastVoice-spoke>300&&now-lastVoice>1300) return state.stop(true);
+        if(!spoke&&now-t0>10000) return state.stop(false); } }
+    tick=setTimeout(check,60);
   };
+  const maxT=setTimeout(()=>state.stop(true),60000);
+  rec.onstop=async()=>{
+    clearTimeout(tick); clearTimeout(maxT); try{ node&&node.disconnect(); }catch{}
+    listening=null; ui.recording(false);
+    if(!send||(!manual&&an&&!spoke)){ ui.status(talkMode?'Tap the mic when you want to talk.':''); return; }
+    ui.busy(true);
+    const mime=(rec.mimeType||type||'audio/webm').split(';')[0];
+    let text='';
+    try{ const r=await fetch('/api/asara/transcribe',{method:'POST',headers:{'Content-Type':mime},body:new Blob(chunks,{type:mime})});
+      const d=r.ok?await r.json():null; text=(d&&d.text)||''; }catch{}
+    ui.busy(false);
+    if(!ui.alive()) return;
+    if(text){ ui.status(''); onText(text); } else ui.status("I couldn't catch that. Tap the mic and try again, or type it.");
+  };
+  rec.start(250); ui.recording(true); check();
+}
+/* Adds a mic to an answer. `status` shows a short line to the person; `onText` receives what they said. */
+function addMic(container,status,onText){
+  if(!canListen()) return null;
+  const b=document.createElement('button'); b.type='button'; b.className='mic'; b.innerHTML=MIC_SVG;
+  const label=t=>{ b.setAttribute('aria-label',t); b.title=t; }; label('Talk to Asara');
+  const ui={ alive:()=>b.isConnected, status,
+    recording(on){ b.classList.toggle('rec',on); label(on?'Stop and send':'Talk to Asara'); if(on) status("I'm listening. Just talk, I'll know when you're done."); },
+    busy(on){ b.classList.toggle('busy',on); if(on) status('Writing down your words…'); } };
+  b.onclick=()=>{ if(listening){ stopListening(true); listening=null; return; } talkMode=true; listen(ui,onText); };
+  container.append(b);
+  if(talkMode) setTimeout(()=>{ if(b.isConnected&&!listening&&talkMode) listen(ui,onText); },200);
   return b;
 }
+function statusLine(box){ const s=document.createElement('div'); s.className='hint talk'; s.setAttribute('role','status'); box.append(s); return t=>{ s.textContent=t; }; }
+/* Matching a spoken answer to the options on screen. */
+const NUMW={one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,twenty:20,thirty:30};
+const STOP=new Set(['a','an','the','to','of','and','or','i','it','my','me','is','at','be','so','just','we','our','for','with','in','on','do','yeah']);
+const SYN={kids:'children',kid:'children',child:'children',none:'no',nope:'no',yep:'yes',yeah:'yes',sure:'yes',vegan:'plant',vegetarian:'plant'};
+const words=t=>t.toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/[\s-]+/).filter(Boolean).map(w=>NUMW[w]!==undefined?String(NUMW[w]):(SYN[w]||w));
+function matchScore(said,option){ const s=new Set(words(said)); let sc=0; for(const w of words(option)){ if(STOP.has(w)) continue; if(s.has(w)) sc+=/^\d+$/.test(w)?2:1; } return sc; }
+function bestOption(said,opts){ let best=null, top=0; for(const o of opts){ const sc=matchScore(said,o); if(sc>top){ top=sc; best=o; } } return best; }
+function spokenNumber(said){ const n=words(said).map(Number).find(n=>n>=1&&n<=10); return n||null; }
 async function say(html,pause=500){
   const clip=fetchClip(html);
   const m=document.createElement('div'); m.className='msg ai'; log.appendChild(m);
@@ -628,7 +676,7 @@ async function say(html,pause=500){
   return m;
 }
 function me(text){ const m=document.createElement('div'); m.className='msg me'; m.textContent=text; log.appendChild(m); log.scrollTop=log.scrollHeight; }
-function ask(build){ return new Promise(res=>{ actions.innerHTML=''; build(actions,v=>{stopVoice(); actions.innerHTML=''; res(v); setTimeout(updateProgress,0);}); }); }
+function ask(build){ return new Promise(res=>{ actions.innerHTML=''; build(actions,v=>{stopVoice(); stopListening(false); actions.innerHTML=''; res(v); setTimeout(updateProgress,0);}); }); }
 function button(label,cls='btn small'){ const b=document.createElement('button'); b.className=cls; b.textContent=label; return b; }
 const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=n=>n.toLocaleString('en-US');
@@ -659,30 +707,42 @@ function updateProgress(){
 function askText(placeholder,{optional=false,cta='Continue',aiNote=false,max=300}={}){ return ask((box,done)=>{
   const row=document.createElement('form'); row.className='row';
   const inp=document.createElement('input'); inp.type='text'; inp.id='q-'+Math.random().toString(36).slice(2,8); inp.placeholder=placeholder; inp.setAttribute('aria-label',placeholder); inp.maxLength=max;
-  row.append(inp); if(voiceOn&&navigator.mediaDevices&&window.MediaRecorder) row.append(micButton(inp)); row.append(button(cta)); box.append(row);
+  row.append(inp);
+  addMic(row,t=>{ inp.placeholder=t||placeholder; },said=>{ inp.value=said.slice(0,max); row.requestSubmit(); });
+  inp.addEventListener('input',()=>stopListening(false));
+  row.append(button(cta)); box.append(row);
   if(optional){ const sk=button('Skip','skip'); sk.type='button'; sk.onclick=()=>{me('Skip');done('');}; row.append(sk); }
-  if(aiNote&&(aiOn||voiceOn)){ const p=document.createElement('p'); p.className='fine';
+  if(aiNote&&(aiOn||voiceOn||canListen())){ const p=document.createElement('p'); p.className='fine';
     p.textContent="I'm an AI guide: what you write or say is processed by AI services so I can answer and speak with you. Nothing is saved unless you choose to apply.";
-    const off=button('Keep it offline','skip'); off.type='button'; off.onclick=()=>{ aiOn=false; offline=true; voiceOn=false; stopVoice(); $('voice-btn').hidden=true; row.querySelectorAll('.mic').forEach(m=>m.remove()); p.textContent="Offline it is: I'll keep to my script, and nothing leaves your device."; inp.focus(); };
+    const off=button('Keep it offline','skip'); off.type='button'; off.onclick=()=>{ aiOn=false; offline=true; voiceOn=false; stopVoice(); endTalk(); $('voice-btn').hidden=true; row.querySelectorAll('.mic').forEach(m=>m.remove()); inp.placeholder=placeholder.replace(', or tap the mic and tell me','. There are no wrong answers'); p.textContent="Offline it is: I'll keep to my script, and nothing leaves your device."; inp.focus(); };
     p.append(off); box.append(p); }
-  setTimeout(()=>inp.focus(),50);
+  if(!talkMode) setTimeout(()=>inp.focus(),50);
   row.addEventListener('submit',e=>{e.preventDefault(); const v=inp.value.trim(); if(!v&&!optional){inp.focus();return;} me(v||'Skip'); done(v);});
 }); }
 function askChoice(opts){ return ask((box,done)=>{ const row=document.createElement('div'); row.className='row';
-  opts.forEach(o=>{ const c=button(o,'chip'); c.type='button'; c.onclick=()=>{me(o);done(o);}; row.append(c); }); box.append(row); }); }
+  opts.forEach(o=>{ const c=button(o,'chip'); c.type='button'; c.onclick=()=>{me(o);done(o);}; row.append(c); }); box.append(row);
+  const status=statusLine(box);
+  addMic(row,status,said=>{ const o=bestOption(said,opts); if(o){ me(o); done(o); } else status(`I heard “${said}”. Which of these fits best?`); }); }); }
 function askMulti(opts,cta){ return ask((box,done)=>{ const row=document.createElement('div'), picked=new Set(); row.className='row';
-  Object.entries(opts).forEach(([k,v])=>{ const c=button(v,'chip'); c.type='button'; c.setAttribute('aria-pressed','false');
+  const chips={};
+  Object.entries(opts).forEach(([k,v])=>{ const c=button(v,'chip'); c.type='button'; c.setAttribute('aria-pressed','false'); chips[k]=c;
     c.onclick=()=>{ const on=c.getAttribute('aria-pressed')!=='true'; c.setAttribute('aria-pressed',on); on?picked.add(k):picked.delete(k); }; row.append(c); });
   const go=button(cta); go.onclick=()=>{ me(picked.size?[...picked].map(k=>opts[k]).join(', '):'Nothing in particular'); done([...picked]); };
-  box.append(row,go); }); }
+  const bar=document.createElement('div'); bar.className='row'; bar.append(go);
+  box.append(row,bar); const status=statusLine(box);
+  addMic(bar,status,said=>{
+    for(const [k,v] of Object.entries(opts)) if(matchScore(said,v)>0&&!picked.has(k)) chips[k].click();
+    if(picked.size||/\b(nothing|none|no)\b/i.test(said)) go.click(); else status(`I heard “${said}”. Tap the ones you'd love, or tell me again.`); }); }); }
 function askScale(lo,hi,start=5){ return ask((box,done)=>{
   const wrap=document.createElement('div'); wrap.className='scale';
   const val=document.createElement('div'); val.className='scale-val'; val.textContent=start;
   const r=document.createElement('input'); r.type='range'; r.min=1; r.max=10; r.value=start; r.id='s-'+Math.random().toString(36).slice(2,8); r.setAttribute('aria-label',`${lo} to ${hi}`);
-  r.oninput=()=>val.textContent=r.value;
+  r.oninput=()=>{ val.textContent=r.value; stopListening(false); };
   const a=document.createElement('span'); a.textContent=lo; const b=document.createElement('span'); b.textContent=hi;
   wrap.append(a,r,b); const go=button('Continue'); go.onclick=()=>{ me(`${r.value} / 10`); done(+r.value); };
-  box.append(val,wrap,go); }); }
+  const bar=document.createElement('div'); bar.className='row'; bar.append(go);
+  box.append(val,wrap,bar); const status=statusLine(box);
+  addMic(bar,status,said=>{ const n=spokenNumber(said); if(n){ r.value=n; val.textContent=n; go.click(); } else status(`I heard “${said}”. Give me a number from 1 to 10.`); }); }); }
 const SPACES={table:'A big table for everyone',kitchen:'Shared kitchen',studio:'Podcast & recording studio',gym:'Gym',yoga:'Yoga shala',cowork:'Co-working space',kids:"Kids' learning space",workshop:'Maker workshop',pool:'Swimming pool',sauna:'Sauna & ice bath'};
 const SPACE_SHORT={table:'The big table',kitchen:'Kitchen',studio:'Studio',gym:'Gym',yoga:'Yoga shala',cowork:'Co-working',kids:'Kids',workshop:'Workshop',pool:'Pool',sauna:'Sauna'};
 const WISH={morning:'Morning sun',quiet:'A quiet corner',access:'Easy road access',garden:'Room for a food garden',commons:'Close to the commons'};
@@ -895,7 +955,7 @@ async function run(){
   await say("Most homes are bought. This village will be <b>imagined first</b>, by the families who will live in it.",500);
   await say("So before I show you anything, I want to listen.",400);
   await say(`If you could create the perfect place for your family to wake up every morning, what would it look like? What would a day feel like there?`);
-  profile.vision=await askText(voiceOn?'Dream freely, or tap the mic and tell me':'Dream freely. There are no wrong answers',{cta:'Share',aiNote:true,max:800});
+  profile.vision=await askText(canListen()?'Dream freely, or tap the mic and tell me':'Dream freely. There are no wrong answers',{cta:'Share',aiNote:true,max:800});
   const th=heard(profile.vision);
   await say(`“${esc(short(profile.vision,140))}”`,300);
   const aiV=await askAsara('vision',profile.vision);
