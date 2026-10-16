@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { rateLimit } from './guards.js';
+import { voiceEnabled } from './voice.js';
 
 /*
  * The AIGA Village onboarding API.
@@ -308,6 +309,7 @@ export function onboardingRouter(): Router {
     res.json({
       asara: Boolean(asaraProvider()),
       applications: Boolean(process.env.JMISSION_URL && process.env.JMISSION_API_KEY && process.env.JMISSION_ENTRY_POINT),
+      voice: voiceEnabled(),
     });
   });
 

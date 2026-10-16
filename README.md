@@ -44,6 +44,8 @@ and can apply. The Cesium dashboard moved to `/dashboard`.
 - `POST /api/asara` — Asara's personal replies at key moments: Gemini (`GEMINI_API_KEY`, `GEMINI_MODEL`, default
   `gemini-3.8-flash`) when set, otherwise OpenAI (`OPENAI_API_KEY`, `OPENAI_MODEL`).
   The page asks for consent first and falls back to scripted lines when AI is off or unavailable.
+- Asara's voice uses ElevenLabs when `ELEVENLABS_API_KEY` is set: she speaks her lines (`ELEVENLABS_VOICE_ID`,
+  `ELEVENLABS_MODEL`, default `eleven_flash_v2_5`) and families can answer by voice (`ELEVENLABS_STT_MODEL`, default `scribe_v1`).
 - `POST /api/applications` — sends the application to **J-Mission** (`POST /api/people` through an `api` entry
   point, with consent), answers stored as `aiga_*` attributes plus a memory note. Needs `JMISSION_URL`,
   `JMISSION_API_KEY` (a key limited to the AIGA Village business) and `JMISSION_ENTRY_POINT` (the entry point slug).

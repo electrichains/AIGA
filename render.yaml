@@ -28,6 +28,11 @@ services:
         sync: false
       - key: OPENAI_MODEL
         value: gpt-4.1-mini
+      # Asara's voice (ElevenLabs): she speaks her lines, and families can answer by voice
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
       # Applications go to J-Mission through an "api" entry point of the AIGA Village business
       - key: JMISSION_URL
         value: https://j-mission.onrender.com

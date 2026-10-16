@@ -15,6 +15,7 @@ import { parseKmzLayers } from './spatial/kmzParser.js';
 import { FAMILY_COLORS } from './spatial/generator.js';
 import * as turf from '@turf/turf';
 import { onboardingRouter } from './web/onboarding.js';
+import { voiceRouter } from './web/voice.js';
 import { requireAdmin, rateLimit } from './web/guards.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -53,6 +54,7 @@ function startHttpAndSseServer() {
 
   // Applicant onboarding API (Asara + applications to J-Mission)
   app.use(onboardingRouter());
+  app.use(voiceRouter());
 
   // Static files: the onboarding experience at /, the Cesium dashboard at /dashboard
   const publicDir = path.join(__dirname, 'web/public');
