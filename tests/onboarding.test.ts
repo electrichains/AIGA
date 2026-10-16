@@ -4,6 +4,7 @@ import { isPrivateAddress, assertPublicHttpsUrl } from '../src/web/guards.js';
 import {
   ApplicationInput,
   toCrmAttributes,
+  engagementScore,
   memoryNote,
   cleanAsaraOutput,
   buildAsaraMessages,
@@ -44,8 +45,12 @@ const sample = {
     families: 20,
     spaces: ['A big table for everyone', 'Maker workshop'],
     food: 9,
-    homeType: 'One storey, about 150 m²',
+    homeType: '2 bedrooms',
+    modules: ['Bathroom & storage', 'Master bedroom', 'Living & kitchen, large', 'Bedroom with bathroom'],
     wishes: ['Morning sun'],
+    material: 'Tropical Modern',
+    stylesLiked: ['Tropical Modern', 'Bukit Limestone'],
+    stylesPassed: ['Steel & Glass'],
   },
   plan: { budget: 480000, land: 300, floor: 150, storeys: 1, total: 480000 },
 };
@@ -72,6 +77,9 @@ describe('Applications to J-Mission', () => {
     assert.equal(attrs.aiga_shared_spaces, 'A big table for everyone, Maker workshop');
     assert.equal(attrs.aiga_budget_usd, 480000);
     assert.equal(attrs.aiga_families_envisioned, 20);
+    assert.equal(attrs.aiga_home_modules, 'Bathroom & storage, Master bedroom, Living & kitchen, large, Bedroom with bathroom');
+    assert.equal(attrs.aiga_style, 'Tropical Modern');
+    assert.equal(attrs.aiga_styles_liked, 'Tropical Modern, Bukit Limestone');
     assert.ok(!('aiga_film' in attrs), 'empty answers are left out');
     for (const key of Object.keys(attrs)) assert.ok(key.length <= 60, key);
   });
@@ -80,6 +88,26 @@ describe('Applications to J-Mission', () => {
     const note = memoryNote(ApplicationInput.parse(sample));
     assert.match(note, /Their ideal village: Kids running/);
     assert.match(note, /150 m² home on 300 m² of land/);
+  });
+});
+
+describe('Leads and engagement', () => {
+  test('a saved home is a lead with its own timestamp', () => {
+    const attrs = toCrmAttributes(ApplicationInput.parse({ ...sample, stage: 'lead' }));
+    assert.equal(attrs.aiga_stage, 'lead');
+    assert.ok('aiga_saved_at' in attrs && !('aiga_applied_at' in attrs));
+  });
+
+  test('stage defaults to application', () => {
+    assert.equal(ApplicationInput.parse(sample).stage, 'application');
+  });
+
+  test('effort and self-expression raise the engagement score, capped at 100', () => {
+    const low = engagementScore(ApplicationInput.parse({ ...sample, profile: { vision: 'ok' } }));
+    const high = engagementScore(ApplicationInput.parse({ ...sample, profile: { ...sample.profile, vision: 'x'.repeat(200),
+      visionFollowUp: 'yes', childhood: 'trees', idea: 'a library', builderEdits: 9, homeType: 'Built my own', homeName: 'Rumah Senja', fit: 'Yes, I can' } }));
+    assert.ok(low < 10, `low was ${low}`);
+    assert.equal(high, 100);
   });
 });
 

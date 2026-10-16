@@ -70,6 +70,10 @@ body{background:var(--night);color:var(--text);font-family:var(--body);font-size
 @keyframes breathe{50%{transform:scale(1.15);box-shadow:0 0 34px rgba(233,185,106,.85)}}
 .g-name{font-family:var(--display);font-size:17px}
 .g-sub{font-size:12px;color:var(--muted)}
+.g-prog{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:5px;min-width:0}
+.g-prog-bar{width:96px;height:5px;border-radius:99px;background:var(--line);overflow:hidden}
+.g-prog-bar i{display:block;height:100%;width:0;background:var(--sun);border-radius:99px;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.g-prog span{font-size:11px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
 #log{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
 .msg{max-width:92%;line-height:1.55;font-size:15px}
 .msg.ai{color:var(--text)}
@@ -90,8 +94,33 @@ body{background:var(--night);color:var(--text);font-family:var(--body);font-size
 .card .profile{font-size:13px;color:var(--muted);line-height:1.5;margin:0 0 6px}
 .label.space{color:var(--text);border-color:var(--sun)}
 .label.vision{font-family:var(--display);font-size:14px;letter-spacing:0;text-transform:none;white-space:normal;width:max-content;max-width:260px;text-align:center;color:var(--text);border-color:var(--sun);background:rgba(12,23,20,.82);line-height:1.35}
+/* style swipe deck */
+#swipe{position:fixed;inset:0;z-index:9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;background:rgba(6,12,10,.8);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.sw-stack{position:relative;width:min(340px,86vw);aspect-ratio:3/4.2;max-height:60vh}
+.sw-card{position:absolute;inset:0;border-radius:22px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.5);background:var(--night-2);touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .35s}
+.sw-card.next{transform:scale(.94) translateY(14px);opacity:.7;pointer-events:none}
+.sw-face{position:absolute;inset:0}
+.sw-face img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+.sw-ill{position:absolute;left:0;top:14%;width:100%;height:auto}
+.sw-info{position:absolute;left:0;right:0;bottom:0;padding:70px 18px 16px;background:linear-gradient(transparent,rgba(8,14,12,.94))}
+.sw-info h3{font-family:var(--display);font-weight:400;font-size:26px;margin:0 0 4px;color:#fff;text-wrap:balance}
+.sw-info p{margin:0;font-size:14px;line-height:1.45;color:#e9e3d3}
+.sw-stamp{position:absolute;top:22px;padding:6px 12px;border:3px solid;border-radius:10px;font:700 22px var(--body);letter-spacing:.08em;opacity:0;pointer-events:none}
+.sw-stamp.yes{left:18px;color:#a6e3a1;border-color:#a6e3a1;transform:rotate(-12deg)}
+.sw-stamp.no{right:18px;color:#f2a08e;border-color:#f2a08e;transform:rotate(12deg)}
+.sw-btns{display:flex;gap:28px}
+.sw-btns button{width:62px;height:62px;border-radius:50%;border:1px solid var(--line);font-size:24px;cursor:pointer;background:var(--night-2);color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.4);transition:transform .15s}
+.sw-btns button:active{transform:scale(.92)}
+#sw-yes{background:var(--sun);color:var(--night);border-color:var(--sun)}
+.sw-eye,.sw-note{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0;text-align:center}
+.sw-note{text-transform:none;letter-spacing:.02em}
+.card .c-style{display:flex;gap:12px;align-items:center;margin:4px 0 12px}
+.c-style .thumb{position:relative;width:60px;height:80px;border-radius:10px;overflow:hidden;flex:none}
+.c-style span{font-size:13px;color:var(--muted)}
+.c-style b{display:block;color:var(--text);font-family:var(--display);font-weight:400;font-size:17px}
 .card .vision{font-size:14px;color:var(--text);font-style:italic;line-height:1.5;margin:0 0 10px}
 .hint{font-size:13px;color:#e3a68f;min-height:0}
+.fine{font-size:12.5px;line-height:1.45;color:var(--muted);margin:8px 2px 0}.fine .skip{font-size:12.5px;padding:0 0 0 4px}
 .apply-form{display:flex;flex-direction:column;gap:10px}
 .apply-form input[type=email],.apply-form input[type=tel]{width:100%;font:15px var(--body);color:var(--text);background:var(--night);border:1px solid var(--line);border-radius:99px;padding:11px 16px}
 .apply-form label.check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--muted);line-height:1.45}
@@ -202,7 +231,7 @@ input::placeholder{color:#6f786b}
 <header class="top">
   <div class="brand">AIGA <span>·</span> Village</div>
   <ol class="steps" id="steps">
-    <li>Arrival</li><li>Meet Asara</li><li>The land</li><li>Your home</li><li>The village</li>
+    <li>Arrival</li><li>Your vision</li><li>The land</li><li>Your home</li><li>The village</li>
   </ol>
 </header>
 
@@ -219,6 +248,7 @@ input::placeholder{color:#6f786b}
   <div class="g-head">
     <div class="g-orb" id="gorb"></div>
     <div><div class="g-name">Asara</div><div class="g-sub">AIGA Village guide</div></div>
+    <div class="g-prog" aria-live="polite"><div class="g-prog-bar"><i id="prog-fill"></i></div><span id="prog-txt">Your village profile · 0%</span></div>
   </div>
   <div id="log" aria-live="polite"></div>
   <div id="actions"></div>
@@ -240,10 +270,17 @@ input::placeholder{color:#6f786b}
 <div class="label place" id="mp-Uluwatu">Uluwatu</div>
 <div class="label place" id="mp-bali" style="font-size:13px;letter-spacing:.4em;color:var(--text)">Bali</div>
 <div id="fade"></div>
+<div id="swipe" hidden role="dialog" aria-modal="true" aria-label="Find your home style">
+  <p class="sw-eye">Find your style · <span id="sw-count"></span></p>
+  <div class="sw-stack" id="sw-stack"></div>
+  <div class="sw-btns"><button id="sw-no" type="button" aria-label="Not for me">✕</button><button id="sw-yes" type="button" aria-label="I love this style">♥</button></div>
+  <p class="sw-note">Style inspiration · the final design is chosen together</p>
+</div>
 
 <div id="card" role="dialog" aria-modal="true" aria-labelledby="card-title">
   <div class="card">
     <img id="card-img" alt="Your plot on the land">
+    <div class="c-style" id="card-style" hidden></div>
     <div class="c-body">
       <div class="c-eye">AIGA Village · Nusa Dua · my dream plot (draft)</div>
       <h2 id="card-title"></h2>
@@ -421,10 +458,35 @@ function house(x,z,s,roofCol,bodyCol=0xe8dcc0,storeys=1){ const g=new THREE.Grou
   const body=new THREE.Mesh(new THREE.BoxGeometry(3.4*s,2.2*s*bh,3.4*s),new THREE.MeshLambertMaterial({color:bodyCol})); body.position.y=1.1*s*bh;
   const roof=new THREE.Mesh(new THREE.ConeGeometry(3.2*s,1.9*s,4),new THREE.MeshLambertMaterial({color:roofCol})); roof.position.y=2.2*s*bh+.95*s; roof.rotation.y=Math.PI/4;
   g.add(body,roof); g.position.set(x,H(x,z),z); g.scale.setScalar(.001); scene.add(g); return g; }
-function tree(x,z,s){ const g=new THREE.Group();
-  const c=new THREE.Mesh(new THREE.ConeGeometry(1.3*s,3.6*s,7),new THREE.MeshLambertMaterial({color:0x5f9a5c})); c.position.y=2.4*s;
-  const t=new THREE.Mesh(new THREE.CylinderGeometry(.18*s,.22*s,1*s,5),new THREE.MeshLambertMaterial({color:0x6b4f35})); t.position.y=.5*s;
-  g.add(c,t); g.position.set(x,H(x,z),z); g.scale.setScalar(.001); scene.add(g); return g; }
+/* Tropical planting: low-poly coconut palms and banana plants (about 60/40), sharing materials and geometry. */
+const PLANT={
+  trunk:new THREE.MeshLambertMaterial({color:0x8a6a48}),
+  frond:new THREE.MeshLambertMaterial({color:0x4f8f45}),
+  banana:new THREE.MeshLambertMaterial({color:0x6aa84f,side:THREE.DoubleSide}),
+  bananaTrunk:new THREE.MeshLambertMaterial({color:0x7d8f4a}),
+  coconut:new THREE.MeshLambertMaterial({color:0x5b4630}),
+  seg:new THREE.CylinderGeometry(.16,.2,1.5,6),
+  // A frond is a thin, flattened tapered blade (a closed solid, so it lights cleanly from every side).
+  frondGeo:(()=>{ const g=new THREE.ConeGeometry(.42,3.6,4,1); g.translate(0,1.8,0); g.scale(1,1,.16); g.computeVertexNormals(); return g; })(),
+  leafGeo:(()=>{ const g=new THREE.PlaneGeometry(1.1,2.6,1,4); g.translate(0,1.3,0); const p=g.attributes.position;
+    for(let i=0;i<p.count;i++){ const y=p.getY(i); p.setX(i,p.getX(i)*Math.max(.06,Math.sin(Math.PI*Math.min(.97,y/2.6+.08)))); p.setZ(i,-.12*y*y); } g.computeVertexNormals(); return g; })(),
+  nut:new THREE.SphereGeometry(.17,6,5),
+};
+function palm(s){ const g=new THREE.Group(), lean=(Math.random()-.5)*.5, segs=5; let y=0, x=0;
+  for(let i=0;i<segs;i++){ const m=new THREE.Mesh(PLANT.seg,PLANT.trunk); x+=lean*.28*i; m.position.set(x,y+.75,0); m.rotation.z=-lean*.35; g.add(m); y+=1.42; }
+  const crown=new THREE.Group(); crown.position.set(x,y,0);
+  const n=7+Math.floor(Math.random()*3), off=Math.random()*6;
+  for(let i=0;i<n;i++){ const f=new THREE.Mesh(PLANT.frondGeo,PLANT.frond); f.rotation.order='YXZ'; f.rotation.y=off+i*2*Math.PI/n; f.rotation.x=1.25+Math.random()*.3; crown.add(f); }
+  for(let i=0;i<n;i++){ const f=new THREE.Mesh(PLANT.frondGeo,PLANT.frond); f.rotation.order='YXZ'; f.rotation.y=off+(i+.5)*2*Math.PI/n; f.rotation.x=1.95+Math.random()*.3; f.scale.setScalar(.85); crown.add(f); }
+  for(let i=0;i<3;i++){ const c=new THREE.Mesh(PLANT.nut,PLANT.coconut); c.position.set(Math.cos(i*2.1)*.25,-.2,Math.sin(i*2.1)*.25); crown.add(c); }
+  g.add(crown); g.scale.multiplyScalar(s*.8); return g; }
+function banana(s){ const g=new THREE.Group();
+  const t=new THREE.Mesh(new THREE.CylinderGeometry(.2,.28,2.2,6),PLANT.bananaTrunk); t.position.y=1.1; g.add(t);
+  const n=5+Math.floor(Math.random()*3), off=Math.random()*6;
+  for(let i=0;i<n;i++){ const l=new THREE.Mesh(PLANT.leafGeo,PLANT.banana); l.position.y=2.1; l.rotation.order='YXZ'; l.rotation.y=off+i*2*Math.PI/n; l.rotation.x=.55+Math.random()*.5; g.add(l); }
+  g.scale.multiplyScalar(s*.75); return g; }
+function tree(x,z,s){ const g=new THREE.Group(); g.add(Math.random()<.6?palm(s):banana(s));
+  g.rotation.y=Math.random()*Math.PI*2; g.position.set(x,H(x,z),z); g.scale.setScalar(.001); scene.add(g); return g; }
 const grow=(o,d)=>{ tween(o.scale,'x',1,d); tween(o.scale,'y',1,d); tween(o.scale,'z',1,d); };
 
 /* ---------- tweens & camera ---------- */
@@ -485,12 +547,12 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-setTimeout(()=>{ for(const id in mapLabels) showLabel(id,true); },RM?0:900);
+setTimeout(()=>{ if(phase==='map') for(const id in mapLabels) showLabel(id,true); },RM?0:900);
 Promise.all([tween(mc,'lr',Math.log(70),RM?0:7000),tween(mc,'tx',-3,RM?0:7000),tween(mc,'tz',7,RM?0:7000)]);
 async function dive(){
   ['mp-bali','mp-Denpasar','mp-Ubud','mp-Uluwatu'].forEach(id=>showLabel(id,false));
   await Promise.all([tween(mc,'tx',0,4200),tween(mc,'tz',0,4200),tween(mc,'lr',Math.log(2.6),4200),tween(mc,'pitch',1.42,4200)]);
-  showLabel('mp-pin',false); $('fade').classList.add('on'); await wait(750);
+  for(const id in mapLabels) showLabel(id,false); $('fade').classList.add('on'); await wait(750);
   phase='land'; $('fade').classList.remove('on');
 }
 
@@ -509,7 +571,7 @@ async function say(html,pause=500){
   m.innerHTML=html; log.scrollTop=log.scrollHeight; await wait(pause); return m;
 }
 function me(text){ const m=document.createElement('div'); m.className='msg me'; m.textContent=text; log.appendChild(m); log.scrollTop=log.scrollHeight; }
-function ask(build){ return new Promise(res=>{ actions.innerHTML=''; build(actions,v=>{actions.innerHTML='';res(v);}); }); }
+function ask(build){ return new Promise(res=>{ actions.innerHTML=''; build(actions,v=>{actions.innerHTML=''; res(v); setTimeout(updateProgress,0);}); }); }
 function button(label,cls='btn small'){ const b=document.createElement('button'); b.className=cls; b.textContent=label; return b; }
 const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=n=>n.toLocaleString('en-US');
@@ -523,18 +585,29 @@ async function askAsara(moment,text,extra={}){
   thinking=true; $('gorb').classList.add('thinking');
   try{
     const r=await fetch('/api/asara',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({moment,text:text||'',context:{name,kids:profile.kids,ages:profile.ages,belief:profile.belief,vision:profile.vision,...extra}}),
+      body:JSON.stringify({moment,text:text||'',context:{name:name==='friend'?undefined:name,kids:profile.kids,ages:profile.ages,belief:profile.belief,vision:profile.vision,...extra}}),
       signal:AbortSignal.timeout?AbortSignal.timeout(10000):undefined});
     if(!r.ok) return null; const d=await r.json(); return d&&d.reply?d:null;
   }catch{ return null; }
   finally{ thinking=false; $('gorb').classList.remove('thinking'); }
 }
 const profile={privacy:5,spaces:[]};
-function askText(placeholder,{optional=false,cta='Continue'}={}){ return ask((box,done)=>{
+/* "Your village profile": how much of their picture they've filled in. People like to finish what they start. */
+function updateProgress(){
+  const done=[profile.belief,profile.kids,profile.vision,profile.familiesAnswer,profile.privacyAnswered,profile.spacesAnswered,profile.food,profile.meat,
+    profile.stylesLiked,profile.materials,profile.modules,profile.homeName!==undefined||undefined,profile.budget,profile.fit].filter(v=>v!==undefined).length;
+  const pct=Math.round(done/14*100);
+  $('prog-fill').style.width=pct+'%'; $('prog-txt').textContent=`Your village profile · ${pct}%`;
+}
+function askText(placeholder,{optional=false,cta='Continue',aiNote=false}={}){ return ask((box,done)=>{
   const row=document.createElement('form'); row.className='row';
   const inp=document.createElement('input'); inp.type='text'; inp.id='q-'+Math.random().toString(36).slice(2,8); inp.placeholder=placeholder; inp.setAttribute('aria-label',placeholder); inp.maxLength=160;
   row.append(inp,button(cta)); box.append(row);
   if(optional){ const sk=button('Skip','skip'); sk.type='button'; sk.onclick=()=>{me('Skip');done('');}; row.append(sk); }
+  if(aiNote&&aiOn){ const p=document.createElement('p'); p.className='fine';
+    p.textContent="I'm an AI guide: what you write is processed by an AI service so I can answer you personally. Nothing is saved unless you choose to apply.";
+    const off=button('Keep it offline','skip'); off.type='button'; off.onclick=()=>{ aiOn=false; p.textContent="Offline it is: I'll keep to my script, and nothing leaves your device."; inp.focus(); };
+    p.append(off); box.append(p); }
   setTimeout(()=>inp.focus(),50);
   row.addEventListener('submit',e=>{e.preventDefault(); const v=inp.value.trim(); if(!v&&!optional){inp.focus();return;} me(v||'Skip'); done(v);});
 }); }
@@ -560,25 +633,86 @@ const HA=(PARCEL.area/10000).toFixed(1);
 /* Village economics (rough): the families lease about 27.5% of the parcel. The green-zone rule allows building on 19% of the
    whole parcel, and those rights are used inside the village area. A home's private land is twice its footprint.
    The build price per m² includes each family's share of building the commons. */
-const LAND_PER_M2=800, BUILD_PER_M2=1600, COVER=0.19, LEASED_SHARE=0.275, MAX_FOOT=150, MAX_FLOOR=300;
+const LAND_PER_M2=800, BUILD_PER_M2=1600, COVER=0.19, LEASED_SHARE=0.275;
 const VILLAGE_BUILDABLE=Math.round(PARCEL.area*COVER), VILLAGE_AREA=Math.round(PARCEL.area*LEASED_SHARE), VZ=Math.sqrt(VILLAGE_AREA/Math.PI);
-function plan(foot,floor){ foot=Math.round(foot); floor=Math.round(floor); const land=foot*2;
-  return {foot,floor,storeys:floor>foot+1?2:1,land,landCost:land*LAND_PER_M2,build:floor*BUILD_PER_M2,total:land*LAND_PER_M2+floor*BUILD_PER_M2}; }
-const HOME_TYPES={compact:{label:'Compact, about 100 m²',plan:()=>plan(100,100)},one:{label:'One storey, about 150 m²',plan:()=>plan(150,150)},two:{label:'Two storeys, about 300 m²',plan:()=>plan(150,300)},open:{label:'Not sure yet',plan:()=>null}};
-function planForBudget(b){ const single=MAX_FOOT*(2*LAND_PER_M2+BUILD_PER_M2);
-  if(b<=single){ const f=b/(2*LAND_PER_M2+BUILD_PER_M2); return plan(f,f); }
-  return plan(MAX_FOOT,Math.min(MAX_FLOOR,MAX_FOOT+(b-single)/BUILD_PER_M2)); }
+
+/* Modular homes: every room is a 6 m deep module; modules join end to end in a row (up to 30 m),
+   and extra rooms form a wing at a right angle. Single storey. Price stays all-in per m². */
+const MOD_DEPTH=6, ROW_MAX=30, MAX_FOOT=270;
+const MODULES={
+  L1:{w:6, name:'Living & kitchen, compact', kind:'living'},
+  L2:{w:10,name:'Living & kitchen, medium',  kind:'living'},
+  L3:{w:12,name:'Living & kitchen, large',   kind:'living'},
+  B: {w:6, name:'Master bedroom',            kind:'bed'},
+  B2:{w:6, name:'Bedroom with bathroom',     kind:'bedbath'},
+  C: {w:5, name:'Bathroom & storage',        kind:'bath'},
+};
+const CONFIGS=[
+  {key:'studio', label:'Studio with bathroom', row:['B2'], wing:[]},
+  {key:'compact',label:'1 bedroom, compact',   row:['L1','B2'], wing:[]},
+  {key:'one',    label:'1 bedroom',            row:['C','B','L2'], wing:[]},
+  {key:'two',    label:'2 bedrooms',           row:['C','B','L3','B2'], wing:[]},
+  {key:'three',  label:'3 bedrooms',           row:['B2','B2','L3'], wing:['B','C']},
+];
+const footOf=mods=>mods.reduce((s,k)=>s+MODULES[k].w*MOD_DEPTH,0);
+const bedroomsOf=mods=>mods.filter(k=>k==='B'||k==='B2').length;
+function priceOf(mods){ const foot=footOf(mods), land=foot*2;
+  return {foot,floor:foot,storeys:1,land,landCost:land*LAND_PER_M2,build:foot*BUILD_PER_M2,total:land*LAND_PER_M2+foot*BUILD_PER_M2,modules:mods.slice()}; }
+/* Splits a module list into a row and a wing, the way the builder snaps them together. */
+function arrange(mods,wingHint){
+  if(wingHint) return {row:mods.slice(0,mods.length-wingHint), wing:mods.slice(mods.length-wingHint)};
+  const row=[], wing=[]; let len=0;
+  for(const k of mods){ if(!wing.length && len+MODULES[k].w<=ROW_MAX){ row.push(k); len+=MODULES[k].w; } else wing.push(k); }
+  return {row,wing};
+}
+/* Rectangles in local metres: u along the row, v away from the commons. Centred on the home. */
+function layoutRects(row,wing){
+  const rects=[]; let u=0;
+  for(const k of row){ rects.push({k,u0:u,u1:u+MODULES[k].w,v0:0,v1:MOD_DEPTH}); u+=MODULES[k].w; }
+  let v=MOD_DEPTH; const wu1=Math.max(u,MOD_DEPTH), wu0=wu1-MOD_DEPTH;
+  for(const k of wing){ rects.push({k,u0:wu0,u1:wu1,v0:v,v1:v+MODULES[k].w}); v+=MODULES[k].w; }
+  const U0=Math.min(...rects.map(r=>r.u0)), U1=Math.max(...rects.map(r=>r.u1)), V0=Math.min(...rects.map(r=>r.v0)), V1=Math.max(...rects.map(r=>r.v1));
+  const cu=(U0+U1)/2, cv=(V0+V1)/2;
+  return {rects:rects.map(r=>({...r,u0:r.u0-cu,u1:r.u1-cu,v0:r.v0-cv,v1:r.v1-cv})), U:U1-U0, V:V1-V0};
+}
+const MODCOL={living:0xa8bd8c, bed:0xc4836f, bath:0x7d919f, cabinet:0x9a6f55};
+function moduleMesh(k,roofCol,opacity=1){
+  const m=MODULES[k], g=new THREE.Group(), h=3.2, gap=.18, W=m.w-gap, D=MOD_DEPTH-gap;
+  const box=(w,d,col,du,role)=>{ const mat=new THREE.MeshLambertMaterial({color:col,transparent:opacity<1,opacity});
+    const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); b.position.set(0,h/2,du); b.userData.role=role; g.add(b); };
+  if(m.kind==='bedbath'){ box(W,D*.5,MODCOL.bed,-D*.25,'main'); box(W,D*.5,MODCOL.bath,D*.25,'wet'); }
+  else if(m.kind==='bath'){ box(W,D*.55,MODCOL.bath,D*.225,'wet'); box(W,D*.45,MODCOL.cabinet,-D*.275,'accent'); }
+  else box(W,D,MODCOL[m.kind],0,'main');
+  // No roof slab: the room colours stay readable from above. A crisp outline gives each module its edge.
+  const edges=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(W,h,D)),new THREE.LineBasicMaterial({color:0x2b2a24,transparent:true,opacity:.55*opacity}));
+  edges.position.y=h/2; g.add(edges);
+  return g;
+}
+/* Places a home made of modules at (x0,z0); `a` is the direction from the commons. */
+function buildHome(x0,z0,a,mods,wingHint,roofCol,opacity=1,animate=true){
+  const {row,wing}=arrange(mods,wingHint), L=layoutRects(row,wing), t=[-Math.sin(a),Math.cos(a)], r=[Math.cos(a),Math.sin(a)], objs=[];
+  L.rects.forEach((q,i)=>{
+    const cu=(q.u0+q.u1)/2, cv=(q.v0+q.v1)/2, x=x0+cu*t[0]+cv*r[0], z=z0+cu*t[1]+cv*r[1];
+    const g=moduleMesh(q.k,roofCol,opacity); g.position.set(x,H(x,z),z);
+    // A module's width runs along its local X axis: along the row for row rooms, away from the commons for wing rooms.
+    g.rotation.y=i<row.length?Math.atan2(-t[1],t[0]):Math.atan2(-r[1],r[0]);
+    scene.add(g); objs.push(g);
+    if(animate){ g.scale.setScalar(.001); setTimeout(()=>grow(g,700),RM?0:i*260); }
+  });
+  return {objs,U:L.U,V:L.V};
+}
+function bestConfigFor(budget){ let best=null; for(const c of CONFIGS){ const p=priceOf([...c.row,...c.wing]); if(p.total<=budget&&(!best||p.total>best.p.total)) best={c,p}; } return best; }
 function homeSpots(n,avoid){ const c=[];
   [42,55,66].forEach((r,ri)=>{ const k=Math.floor(2*Math.PI*r/24); for(let i=0;i<k;i++){ const a=i*2*Math.PI/k+ri*.21, x=CX+r*Math.cos(a), z=CZ+r*Math.sin(a);
-    if(avoid&&Math.hypot(x-avoid[0],z-avoid[1])<26) continue; c.push([x,z,a]); } });
+    if(avoid&&Math.hypot(x-avoid[0],z-avoid[1])<(avoid[2]||26)) continue; c.push([x,z,a]); } });
   if(n>=c.length) return c; const out=[]; for(let i=0;i<n;i++) out.push(c[Math.floor(i*c.length/n)]); return out; }
-function rectPlot(x0,z0,side,ang,color){ const n=6,pos=[],idx=[],ca=Math.cos(ang),sa=Math.sin(ang),h=side/2;
+function rectPlot(x0,z0,side,ang,color,depth=side){ const n=6,pos=[],idx=[],ca=Math.cos(ang),sa=Math.sin(ang),h=depth/2,hw=side/2;
   const Pt=(u,v)=>[x0+u*ca-v*sa,z0+u*sa+v*ca];
-  for(let i=0;i<=n;i++)for(let j=0;j<=n;j++){ const [x,z]=Pt(-h+side*i/n,-h+side*j/n); pos.push(x,H(x,z)+.4,z); }
+  for(let i=0;i<=n;i++)for(let j=0;j<=n;j++){ const [x,z]=Pt(-h+depth*i/n,-hw+side*j/n); pos.push(x,H(x,z)+.4,z); }
   for(let i=0;i<n;i++)for(let j=0;j<n;j++){ const p=i*(n+1)+j; idx.push(p,p+n+1,p+1,p+1,p+n+1,p+n+2); }
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx);
   const fill=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide}));
-  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([[-h,-h],[h,-h],[h,h],[-h,h],[-h,-h]].map(([u,v])=>v3(Pt(u,v),.7))),new THREE.LineBasicMaterial({color,transparent:true,opacity:0}));
+  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([[-h,-hw],[h,-hw],[h,hw],[-h,hw],[-h,-hw]].map(([u,v])=>v3(Pt(u,v),.7))),new THREE.LineBasicMaterial({color,transparent:true,opacity:0}));
   const grp=new THREE.Group(); grp.add(fill,line); grp.position.y=-4; scene.add(grp); return {grp,fill,line}; }
 function parseBudget(t){ const m=t.toLowerCase().replace(/usd|\$|,|\s/g,'').match(/^(\d+(?:\.\d+)?)(k|m)?$/); if(!m) return 0;
   const v=parseFloat(m[1])*(m[2]==='k'?1e3:m[2]==='m'?1e6:1); return v>=1000?Math.round(v):0; }
@@ -593,7 +727,76 @@ function trim(p,target){ let lo=.03,hi=1,f=1; const da=(p.a1-p.a0)/(p.outer.leng
 
 $('enter').addEventListener('click',run,{once:true});
 
-const MATERIALS={bamboo:{label:'Bamboo',body:0xd8c48f,roof:0x8a6a3a},stone:{label:'Local stone',body:0xb9b2a3,roof:0x6f6a60},earth:{label:'Rammed earth',body:0xc79a72,roof:0x8e5a3c},timber:{label:'Timber',body:0xb88a5c,roof:0x5c4a3a},open:{label:'Not sure yet',body:0xe8dcc0,roof:0xc9894f}};
+/* Home styles for the swipe deck. A photo at images/styles/<key>.jpg replaces the illustration automatically. */
+const STYLES=[
+  {key:'tropical-modern',name:'Tropical Modern',line:'Flat white roofs, walls of glass, warm teak inside.',tags:['modern','open','light'],wall:0xe9e6df,accent:0xa57a52,roof:'flat'},
+  {key:'bamboo',name:'Bamboo Sanctuary',line:'Woven bamboo and curved roofs, living inside the green.',tags:['natural','warm','handmade'],wall:0xd2b77c,accent:0x7a5a2f,roof:'pitched'},
+  {key:'limestone',name:'Bukit Limestone',line:'Carved local limestone, cool and solid, made for the dry south.',tags:['natural','local','solid'],wall:0xe3d9c3,accent:0x9c8f78,roof:'flat'},
+  {key:'joglo',name:'Balinese Joglo',line:'Carved teak and steep thatched roofs, centuries of island craft.',tags:['traditional','warm','handmade'],wall:0xb07a4f,accent:0x6b4a2e,roof:'pitched'},
+  {key:'earth',name:'Rammed Earth Minimal',line:'Thick earth walls in layers of ochre, quiet and cool.',tags:['natural','minimal','solid'],wall:0xc98f62,accent:0x8a5a3c,roof:'flat'},
+  {key:'white-timber',name:'White & Timber',line:'Lime-washed walls, pale wood, light in every room.',tags:['light','minimal','modern'],wall:0xf1eee7,accent:0xc49a6c,roof:'pitched'},
+  {key:'pavilion',name:'Open Pavilion',line:'Roofs on slender columns, rooms that open to the garden.',tags:['open','traditional','light'],wall:0xd9c9a8,accent:0x5f4a36,roof:'pitched'},
+  {key:'steel-glass',name:'Steel & Glass',line:'Dark steel frames and big glass, a sharp modern edge.',tags:['modern','bold','open'],wall:0x5b6066,accent:0x2f3337,roof:'flat'},
+];
+const STYLE_BY=Object.fromEntries(STYLES.map(st=>[st.key,st]));
+const TASTE={natural:'warm natural materials',modern:'clean modern lines',open:'homes that open onto the garden',light:'light-filled rooms',traditional:'Balinese craft and tradition',handmade:'things made by hand',minimal:'quiet, minimal spaces',solid:'thick, cool walls',local:'local materials',warm:'warmth',bold:'a bold edge'};
+const hexc=n=>'#'+n.toString(16).padStart(6,'0');
+function styleFace(st){
+  const w=hexc(st.wall), a=hexc(st.accent);
+  const roof=st.roof==='pitched'?`<polygon points="44,92 150,40 256,92" fill="${a}"/>`:`<rect x="48" y="84" width="204" height="12" rx="2" fill="${a}"/>`;
+  return `<div class="sw-face" style="background:linear-gradient(180deg,#f2c27c 0%,#d9a37a 30%,#7fa3a8 62%,#2d4a31 62%,#1d3424 100%)">
+    <svg class="sw-ill" viewBox="0 0 300 200" aria-hidden="true">
+      <circle cx="232" cy="46" r="18" fill="#fff1c9" opacity=".85"/>
+      <path d="M26 124 C30 90 34 70 40 52 M40 52 C28 46 16 48 8 56 M40 52 C50 40 64 38 74 44 M40 52 C36 38 26 30 14 30 M40 52 C54 50 64 56 70 66" stroke="#1d3424" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+      ${roof}
+      <rect x="62" y="96" width="176" height="28" fill="${w}"/>
+      <rect x="78" y="102" width="26" height="22" fill="#f6d68f"/><rect x="114" y="102" width="40" height="22" fill="#f6d68f"/><rect x="164" y="102" width="26" height="22" fill="#f6d68f"/><rect x="200" y="102" width="22" height="22" fill="#f6d68f" opacity=".8"/>
+      <rect x="40" y="123" width="220" height="4" fill="${a}" opacity=".6"/>
+    </svg>
+    <img src="images/styles/${st.key}.jpg" alt="${st.name} home" onerror="this.remove()" decoding="async">
+  </div>`;
+}
+/* The swipe deck: drag, the ♥/✕ buttons, or the arrow keys. Resolves with the liked and passed styles. */
+function swipeDeck(){ return new Promise(resolve=>{
+  const box=$('swipe'), stack=$('sw-stack'), liked=[], passed=[]; let i=0, current=null;
+  const key=e=>{ if(e.key==='ArrowRight') decide(true); if(e.key==='ArrowLeft') decide(false); };
+  const render=()=>{
+    stack.innerHTML=''; $('sw-count').textContent=`${i+1} of ${STYLES.length}`;
+    [i+1,i].forEach((k,n)=>{ if(k>=STYLES.length) return; const st=STYLES[k], c=document.createElement('div');
+      c.className='sw-card'+(n===0?' next':'');
+      c.innerHTML=styleFace(st)+`<div class="sw-stamp yes">LOVE</div><div class="sw-stamp no">NOPE</div><div class="sw-info"><h3>${st.name}</h3><p>${st.line}</p></div>`;
+      stack.append(c); if(n===1) bind(c); });
+  };
+  const decide=(like)=>{ const c=current; if(!c) return; current=null;
+    (like?liked:passed).push(STYLES[i]);
+    try{ if(like&&navigator.vibrate) navigator.vibrate(12); }catch{}
+    c.querySelector(like?'.yes':'.no').style.opacity=1;
+    c.style.transition='transform .45s ease, opacity .45s'; c.style.transform=`translate(${like?640:-640}px,-30px) rotate(${like?22:-22}deg)`; c.style.opacity=0;
+    i++;
+    setTimeout(()=>{ if(i>=STYLES.length){ box.hidden=true; document.removeEventListener('keydown',key); resolve({liked,passed}); } else render(); },RM?0:300);
+  };
+  const bind=c=>{ current=c; let x0=null, dx=0; const yes=c.querySelector('.yes'), no=c.querySelector('.no');
+    c.addEventListener('pointerdown',e=>{ x0=e.clientX; dx=0; c.setPointerCapture(e.pointerId); c.style.transition='none'; });
+    c.addEventListener('pointermove',e=>{ if(x0===null) return; dx=e.clientX-x0; c.style.transform=`translateX(${dx}px) rotate(${dx*.06}deg)`; yes.style.opacity=Math.max(0,dx/100); no.style.opacity=Math.max(0,-dx/100); });
+    const up=()=>{ if(x0===null) return; x0=null; if(Math.abs(dx)>90) decide(dx>0); else { c.style.transition=''; c.style.transform=''; yes.style.opacity=0; no.style.opacity=0; } };
+    c.addEventListener('pointerup',up); c.addEventListener('pointercancel',up);
+  };
+  $('sw-yes').onclick=()=>decide(true); $('sw-no').onclick=()=>decide(false);
+  document.addEventListener('keydown',key);
+  box.hidden=false; render(); setTimeout(()=>$('sw-yes').focus(),50);
+}); }
+/* The style that best matches everything they liked. */
+function topStyle(liked){
+  if(!liked.length) return STYLES[0];
+  const count={}; liked.forEach(st=>st.tags.forEach(t=>count[t]=(count[t]||0)+1));
+  return liked.map(st=>({st,score:st.tags.reduce((s,t)=>s+count[t],0)})).sort((a,b)=>b.score-a.score)[0].st;
+}
+function tasteLine(liked){
+  const count={}; liked.forEach(st=>st.tags.forEach(t=>count[t]=(count[t]||0)+1));
+  const top=Object.entries(count).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([t])=>TASTE[t]);
+  return top.length>1?`${top[0]} and ${top[1]}`:top[0];
+}
+const shade=(n,f)=>{ const c=new THREE.Color(n); c.multiplyScalar(f); return c; };
 function askBudget(){ return ask((box,done)=>{
   const chips=document.createElement('div'); chips.className='row';
   [250000,480000,720000,1000000].forEach(v=>{ const c=button('$'+fmt(v),'chip'); c.type='button'; c.onclick=()=>{me('$'+fmt(v)); done(v);}; chips.append(c); });
@@ -627,50 +830,45 @@ async function run(){
   $('guide').classList.add('open'); setTimeout(resize,1000);
   orb.material.opacity=1; orbTarget.set(CX,24,CZ);
 
-  /* ---------- 1. Meet: the blank page, then the person ---------- */
-  await say("Hello, I'm <b>Asara</b>, the guide for <b>AIGA Village</b>.");
-  await say("This village doesn't exist yet. It's a <b>blank page</b>, and today you hold the pen. Everything you tell me, I'll draw on the land in front of you.",700);
-  await say("Before we start: I'm an AI guide. To personalise our conversation, what you write to me is processed by an AI service. Nothing is saved unless you choose to apply at the end.");
-  const c0=await askChoice(['Sounds good','Keep it simple, no AI']);
-  aiOn=c0==='Sounds good'&&aiAvailable;
-  await say(c0==='Sounds good'?"Thank you. What should I call you?":"Of course. I'll keep to my script, and nothing leaves your device. What should I call you?");
-  name=await askText('Your first name',{cta:'Continue'});
-  name=name.slice(0,30)||'friend';
-  const N=esc(name);
-  await say(`Welcome, <b>${N}</b>. A village starts with its people, so let's start with you. In one sentence: who are you, and what do you believe in?`);
-  profile.belief=await askText('e.g. A teacher who believes kids should grow up barefoot');
-  const aiB=await askAsara('belief',profile.belief);
-  await say(aiB?esc(aiB.reply):`Thank you. That tells me more than any form could.`,300);
-  await say(`Just for fun: is there a line from a film that feels like you?`);
-  profile.film=await askText('A quote, or just the film',{optional:true});
-  if(profile.film){ const aiF=await askAsara('film',profile.film); await say(aiF?esc(aiF.reply):`Good choice.`,200); }
-  await say(`And who would come with you? Do you have children?`);
-  profile.kids=await askChoice(['No children','1','2','3','4 or more']);
-  if(profile.kids!=='No children'){
-    await say(`How old are they?`);
-    profile.ages=await askText('e.g. 4 and 7');
-    await say(`I'll keep them in mind as we go: safe paths, shade, places to roam. Families with children are a big part of this vision.`,400);
-  } else await say(`Got it.`,200);
-
-  const kids=profile.kids!=='No children';
-  await say(kids?`Before I show you anything, I'd love to hear your vision. Imagine the ideal village to raise your children. What does it look like? What does a day feel like there?`
-               :`Before I show you anything, I'd love to hear your vision. Imagine your ideal village. What does it look like? What does a day feel like there?`);
-  profile.vision=await askText('Take your time. There are no wrong answers',{cta:'Share'});
+  /* ---------- 1. Listen first: a short hook, then their vision, then who they are ---------- */
+  aiOn=aiAvailable;
+  await say("Hello, I'm <b>Asara</b>.",200);
+  await say("Most homes are bought. This village will be <b>imagined first</b>, by the families who will live in it.",500);
+  await say("So before I show you anything, I want to listen.",400);
+  await say(`If you could create the perfect place for your family to wake up every morning, what would it look like? What would a day feel like there?`);
+  profile.vision=await askText('Dream freely. There are no wrong answers',{cta:'Share',aiNote:true});
   const th=heard(profile.vision);
   await say(`“${esc(short(profile.vision,140))}”`,300);
   const aiV=await askAsara('vision',profile.vision);
-  await say(aiV?esc(aiV.reply):(th.length?`I hear ${listJoin(th)}. That's exactly the kind of village this blank page is for.`:`Thank you for sharing that. I've kept your words exactly as you wrote them.`),500);
+  await say(aiV?esc(aiV.reply):(th.length?`I hear ${listJoin(th)}. Hold on to that: this whole village starts from visions like yours.`:`Thank you. I've kept your words exactly as you wrote them. This whole village starts from visions like yours.`),500);
   if(aiV&&aiV.followUp){
     profile.visionFollowUpQuestion=aiV.followUp;
     await say(esc(aiV.followUp));
     profile.visionFollowUp=await askText('Your answer',{optional:true});
     if(profile.visionFollowUp){ const aiA=await askAsara('vision_followup',profile.visionFollowUp,{followUpQuestion:aiV.followUp}); await say(aiA?esc(aiA.reply):`Thank you. I'll remember that.`,300); }
   }
-  await say(kids?`And one thing from your own childhood that you'd want your children to have too?`:`And what's missing from the place you live now?`);
-  profile.wish=await askText(kids?'e.g. Climbing trees until sunset':'e.g. Neighbours who actually know my name',{optional:true});
+  await say(`And what's missing from the life your family lives today?`);
+  profile.wish=await askText('e.g. Neighbours who feel like family',{optional:true});
   if(profile.wish){ const th2=heard(profile.wish).filter(x=>!th.includes(x)); const aiC=await askAsara('childhood',profile.wish);
-    await say(aiC?esc(aiC.reply):(th2.length?`${th2[0][0].toUpperCase()+th2[0].slice(1)}. I'll remember that.`:`I'll remember that. It's often the small things that make a place home.`),400); }
-  await say(`Let me show you where all of this could happen.`,300);
+    await say(aiC?esc(aiC.reply):(th2.length?`${th2[0][0].toUpperCase()+th2[0].slice(1)}. I'll remember that. It's exactly what a village like this is for.`:`I'll remember that. It's often the small things that make a place home.`),400); }
+
+  await say(`I've been listening without even asking your name. What should I call you?`);
+  name=await askText('Your first name',{cta:'Continue'});
+  name=name.slice(0,30)||'friend';
+  const N=esc(name);
+  await say(`${N}, here's what makes this village different: it isn't sold to whoever pays first. It grows around families who share a vision, and they don't just live in it. They <b>create</b> it.`,700);
+  await say(`So the heart of it, in one sentence: what do you believe in?`);
+  profile.belief=await askText('e.g. Kids should grow up barefoot, close to nature');
+  const aiB=await askAsara('belief',profile.belief);
+  await say(aiB?esc(aiB.reply):`That's the kind of sentence a village is built on. It's how families here find their tribe.`,300);
+  await say(`And who's coming with you? Do you have children?`);
+  profile.kids=await askChoice(['No children','1','2','3','4 or more']);
+  if(profile.kids!=='No children'){
+    await say(`How old are they?`);
+    profile.ages=await askText('e.g. 4 and 7');
+    await say(`I'll keep them in mind at every step: shade, safe paths, places to roam.`,400);
+  } else await say(`Got it.`,200);
+  await say(`Now let me show you where all of this could happen.`,300);
 
   /* ---------- 2. The land, shaped by their answers ---------- */
   stepTo(2);
@@ -686,7 +884,7 @@ async function run(){
   showLabel('lb-zone',true); showLabel('lb-green',true);
   camTo({tx:CX,tz:CZ,r:380,pitch:1.15,yaw:.2},2500);
   await say(`The village would lease about a quarter of it, around <b>${fmt(VILLAGE_AREA)} m²</b> in the middle. Green-zone rules allow building on 19% of the whole parcel, about ${fmt(VILLAGE_BUILDABLE)} m², and all of that can be used inside the village. The rest stays green.`,800);
-  await say(`We first imagined 12 families, but that number is still open, and your view counts. How many families do you see in your ideal village?`);
+  await say(`We first imagined 12 families, but that number is still open, and your view counts. How big is your tribe? How many families do you see in your ideal village?`);
   const fam=await askChoice(['8 to 12, intimate','About 20','30 or more','Not sure yet']);
   profile.familiesAnswer=fam; profile.families={'8 to 12, intimate':10,'About 20':20,'30 or more':30}[fam]||16;
   const dots=homeSpots(profile.families).map(([x,z])=>{ const d=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('#fff8e6','rgba(233,185,106,.9)'),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending})); d.position.set(x,H(x,z)+4,z); d.scale.set(.1,.1,1); scene.add(d); return d; });
@@ -698,7 +896,7 @@ async function run(){
   $('lb-vision').textContent=`“${short(profile.vision,90)}”`; labels['lb-vision']=new THREE.Vector3(CX,22,CZ); showLabel('lb-vision',true);
   tween(hubRing.material,'opacity',.95,2000); tween(uni.uHub,'value',1,2000); showLabel('lb-hub',true);
   await say(`At the heart, a green commons all the families share. I've put your vision right here, because this is where it would start. You decide how it feels. Where are you on this scale?`);
-  profile.privacy=await askScale('One big family','My own retreat',5);
+  profile.privacy=await askScale('One big family','My own retreat',5); profile.privacyAnswered=true;
   const hubScale=1.3-(profile.privacy-1)/9*.55;
   tween(hubRing.scale,'x',hubScale,1500); tween(hubRing.scale,'y',hubScale,1500); tween(uni.uHubR,'value',HUB_R*hubScale,1500);
   if(profile.privacy<=4) wishes.add('commons'); else if(profile.privacy>=7) wishes.add('quiet');
@@ -706,7 +904,7 @@ async function run(){
   showLabel('lb-hub',false);
 
   await say(`What would you love to find here? Choose freely. I'll build whatever you pick.`);
-  profile.spaces=await askMulti(SPACES,'Build these');
+  profile.spaces=await askMulti(SPACES,'Build these'); profile.spacesAnswered=true;
   await say(`And is there something you envision that isn't on the list? An outdoor cinema, a library, a tree house for the kids… anything at all.`);
   profile.idea=await askText('Your idea for the village',{optional:true,cta:'Add it'});
   if(profile.idea){ SPACES.custom=profile.idea; SPACE_SHORT.custom=short(profile.idea,24); profile.spaces.push('custom');
@@ -727,6 +925,9 @@ async function run(){
     labels[el.id]=new THREE.Vector3(x,H(x,z)+7,z); setTimeout(()=>showLabel(el.id,true),RM?0:500+n*350);
   });
   await say(profile.spaces.length?`There ${profile.spaces.length===1?'it is':'they are'}. See how fast a blank page fills up?`:`That's fine. The families will dream these up together.`,700);
+  await say(`While it takes shape, just for fun: is there a line from a film that feels like your family?`);
+  profile.film=await askText('A quote, or just the film',{optional:true});
+  if(profile.film){ const aiF=await askAsara('film',profile.film); await say(aiF?esc(aiF.reply):`Good choice. I'd watch that one together.`,200); }
 
   await say(`Around the commons, there's room for food. How important is <b>food quality</b> to you?`);
   profile.food=await askScale('Not much','Everything',7);
@@ -738,7 +939,7 @@ async function run(){
   profile.meat=await askChoice(['Yes','Sometimes','No, plant-based']);
   await say(`And would you mind if your neighbours do?`);
   profile.meatOk=await askChoice(['Not at all','A little','Yes, I would']);
-  await say(`Thank you for being honest. Shared kitchens only work when people agree on the rules, so it helps to know this early.`,400);
+  await say(`Thank you for being honest. A tribe works when people agree on the small things too, like what's cooked in a shared kitchen, so it helps to know this early.`,400);
 
   /* ---------- 3. Your home ---------- */
   stepTo(3); showLabel('lb-vision',false);
@@ -788,56 +989,122 @@ async function run(){
   if(!reasons.length) reasons.push('it balances light, quiet and access');
   await say(`This corner fits you: ${reasons.join(', and ')}. It's yours to shape.`,500);
 
-  await say(`What would you like your home to be made of?`);
-  const matLabel=await askChoice(Object.values(MATERIALS).map(m=>m.label));
-  profile.material=Object.keys(MATERIALS).find(k=>MATERIALS[k].label===matLabel);
+  await say(`Before we build, let's find your style. I'll show you a few homes. Swipe right on the ones you love, left on the ones you don't.`);
+  await ask((box,done)=>{ const b=button('Show me the homes'); box.append(b); b.onclick=()=>done(); });
+  const deck=await swipeDeck();
+  profile.stylesLiked=deck.liked.map(st=>st.name); profile.stylesPassed=deck.passed.map(st=>st.name);
+  const sty=topStyle(deck.liked); profile.style=sty.key;
+  me(deck.liked.length?`♥ ${profile.stylesLiked.join(', ')}`:'None of these');
+  await say(deck.liked.length?`I can see your taste: you love ${tasteLine(deck.liked)}. Let's start from <b>${sty.name}</b>.`:`None of them felt right, and that tells me something too. I'll start from Tropical Modern, and the families will explore many more styles together.`,500);
   await say(`And how much does the choice of materials matter to you?`);
   profile.materials=await askScale('Not much','Deeply',6);
   await say(profile.materials>=7?`Then you'll love the design phase. The families choose materials and style together, and I'll show everyone the options.`:`Good to know. Some people care more about how a place feels than what it's made of.`,400);
 
-  await say(`What kind of home do you see yourself in?`);
-  const typeOf=async()=>{ const lbl=await askChoice(Object.values(HOME_TYPES).map(t=>t.label)); return Object.keys(HOME_TYPES).find(k=>HOME_TYPES[k].label===lbl); };
-  profile.homeType=await typeOf();
-  let budget=0, P=null, built=[], first=true, askB=true;
+  await say(`Now the fun part: your home. Every room here is a module, and they snap together like building blocks. Start from one of these, then shape it however you like.`);
+  const cfgLabel=c=>`${c.label} · ${footOf([...c.row,...c.wing])} m²`;
+  const startPick=await askChoice([...CONFIGS.map(cfgLabel),'Build my own']);
+  const startCfg=CONFIGS.find(c=>cfgLabel(c)===startPick);
+  let mods=startCfg?[...startCfg.row,...startCfg.wing]:['L1'], wingHint=startCfg?startCfg.wing.length:0;
+  let built=[], plotObj=null, styled=false;
+  const paint=(animate)=>{ const target={main:new THREE.Color(sty.wall),wet:shade(sty.wall,.86),accent:new THREE.Color(sty.accent)};
+    built.forEach(o=>o.traverse(m=>{ if(!m.isMesh||!m.userData.role) return; const c=target[m.userData.role];
+      if(animate){ tween(m.material.color,'r',c.r,1300); tween(m.material.color,'g',c.g,1300); tween(m.material.color,'b',c.b,1300); } else m.material.color.copy(c); })); };
+  const draw=(animateAll)=>{
+    removeAll(built); built=[]; if(plotObj) scene.remove(plotObj.grp);
+    const P=priceOf(mods), home=buildHome(fx,fz,spot.a,mods,wingHint,sty.accent,1,animateAll);
+    built=home.objs; if(styled) paint(false);
+    const w=home.U+4, d=Math.max(home.V+4,P.land/w);
+    plotObj=rectPlot(fx,fz,w,spot.a,'#e9b96a',d); tween(plotObj.grp.position,'y',0,600); tween(plotObj.fill.material,'opacity',.35,600); tween(plotObj.line.material,'opacity',1,600);
+    $('lb-you').textContent=profile.homeName||`Your home · ${fmt(P.foot)} m²`; labels['lb-you']=new THREE.Vector3(fx,H(fx,fz)+14,fz); showLabel('lb-you',true);
+    return P;
+  };
+  scene.remove(preview.grp);
+  await camTo({r:95,pitch:.7},1600);
+  await say(startCfg?`Let me assemble it: the living space first, then the rooms around it.`:`Let's start with a compact living and kitchen. Add rooms as you like.`,200);
+  let P=draw(true);
+  await wait(400+mods.length*260);
+  await say(`Now shape it. Add or remove rooms and watch it change on your land. The price updates as you go.`);
+  const summary=()=>{ const p=priceOf(mods), b=bedroomsOf(mods); return `<b>${fmt(p.foot)} m²</b> · ${b} bedroom${b===1?'':'s'} · rough total <b>$${fmt(p.total)}</b> with its land`; };
+  await ask((box,done)=>{
+    const sum=document.createElement('div'); sum.className='msg ai'; sum.style.fontSize='14px';
+    const hint=document.createElement('div'); hint.className='hint'; hint.setAttribute('role','status');
+    const rowA=document.createElement('div'); rowA.className='row';
+    const rowB=document.createElement('div'); rowB.className='row';
+    const rowC=document.createElement('div'); rowC.className='row';
+    const refresh=()=>{ sum.innerHTML=summary(); const lv=mods.find(k=>MODULES[k].kind==='living'); rowB.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.k===lv))); };
+    const change=(next,newWing=null)=>{ if(footOf(next)>MAX_FOOT){ hint.textContent=`That's the largest home in this sketch (${MAX_FOOT} m²). Bigger homes are a conversation for the design phase.`; return; }
+      if(!next.length){ hint.textContent='A home needs at least one room.'; return; }
+      hint.textContent=''; mods=next; wingHint=newWing===null?0:newWing; profile.builderEdits=(profile.builderEdits||0)+1; P=draw(false); refresh(); };
+    [['B2','+ Bedroom with bathroom'],['B','+ Master bedroom'],['C','+ Bathroom & storage']].forEach(([k,label])=>{ const b=button(label,'chip'); b.type='button'; b.onclick=()=>change([...mods,k]); rowA.append(b); });
+    const lvLabel=document.createElement('span'); lvLabel.textContent='Living:'; lvLabel.style.cssText='font-size:13px;color:var(--muted)'; rowB.append(lvLabel);
+    [['L1','Compact'],['L2','Medium'],['L3','Large']].forEach(([k,label])=>{ const b=button(label,'chip'); b.type='button'; b.dataset.k=k;
+      b.onclick=()=>{ const i=mods.findIndex(m=>MODULES[m].kind==='living'); const next=mods.slice(); if(i>=0) next[i]=k; else next.unshift(k); change(next,wingHint&&i>=0&&i<mods.length-wingHint?wingHint:0); }; rowB.append(b); });
+    const undo=button('Remove last room','ghost'); undo.type='button'; undo.onclick=()=>change(mods.slice(0,-1));
+    const ok=button('This is my home'); ok.onclick=()=>{ me(`My home: ${fmt(priceOf(mods).foot)} m², ${bedroomsOf(mods)} bedroom${bedroomsOf(mods)===1?'':'s'}`); done(); };
+    rowC.append(undo,ok); box.append(sum,rowA,rowB,rowC,hint); refresh();
+  });
+  P=priceOf(mods);
+  await say(`You built that. Now let me dress it in your style: <b>${sty.name}</b>.`,200);
+  styled=true; paint(true); await wait(1500);
+  await say(`There it is. Your home, on your land.`,500);
+  await say(`Every home in the village gets a name. What would you call yours?`);
+  profile.homeName=(await askText('e.g. Rumah Senja, Casa Laut, The Nest',{optional:true,cta:'Name it'})).slice(0,40);
+  if(profile.homeName){ $('lb-you').textContent=profile.homeName; await say(`<b>${esc(profile.homeName)}</b>. I love it. It's written on your plot now.`,500); }
+  profile.homeType=startCfg?startCfg.label:'Built my own';
+  profile.modules=mods.map(k=>MODULES[k].name);
+
+  let budget=0, first=true;
   while(true){
-    const wish=HOME_TYPES[profile.homeType].plan();
-    if(askB){
-      await say(!first?`Of course. What budget would you like to try?`:wish?`A home like that, about ${fmt(wish.floor)} m², would come to roughly <b>$${fmt(wish.total)}</b>, including its land and your share of building the commons. Now it's entirely your call: what budget feels comfortable for you?`:`No problem. Let's start from the other side: what budget feels comfortable for you, for land and building together?`);
-      budget=await askBudget();
+    await say(first?`Beautiful. With its land and your share of the commons, this home comes to roughly <b>$${fmt(P.total)}</b>. Now it's entirely your call: what budget feels comfortable for you?`:`Of course. What budget would you like to try?`);
+    budget=await askBudget(); profile.budget=budget;
+    const breakdown=p=>`<dl class="est"><dt>Private land, 30-year lease · ${fmt(p.land)} m²</dt><dd>$${fmt(p.landCost)}</dd><dt>Home · ${fmt(p.foot)} m², commons share included</dt><dd>$${fmt(p.build)}</dd><dt class="tot">Rough total</dt><dd class="tot">$${fmt(p.total)}</dd></dl>`;
+    let next;
+    if(P.total<=budget){
+      await say(`Your budget covers it. Here's the rough picture:${breakdown(P)}`,400);
+      next=await askChoice(['That feels right','Shape my home again']);
+    } else {
+      const fit=bestConfigFor(budget);
+      await say(`Your design comes to about $${fmt(P.total)}, which is $${fmt(P.total-budget)} above that budget.`,300);
+      if(fit) await say(`With <b>$${fmt(budget)}</b>, the ${fit.c.label.toLowerCase()} home fits:${breakdown(fit.p)}`,400);
+      else await say(`The smallest home, a studio with its land, starts around $${fmt(priceOf(['B2']).total)}.`,300);
+      next=await askChoice([...(fit?['Use that one']:[]),'Keep my design','Try another budget','Shape my home again']);
+      if(next==='Use that one'){ mods=[...fit.c.row,...fit.c.wing]; wingHint=fit.c.wing.length; P=draw(true); profile.homeType=fit.c.label; profile.modules=mods.map(k=>MODULES[k].name); next='That feels right'; }
+      if(next==='Keep my design') next='That feels right';
     }
-    const fits=!!wish&&wish.total<=budget;
-    P=fits?wish:planForBudget(budget);
-    removeAll(built); built=[];
-    const side=Math.sqrt(P.land), mat=MATERIALS[profile.material];
-    const mine=rectPlot(fx,fz,side,spot.a,'#e9b96a'); built.push(mine.grp);
-    tween(mine.grp.position,'y',0,1300); tween(mine.fill.material,'opacity',.42,1300); tween(mine.line.material,'opacity',1,1300);
-    const hs=house(fx,fz,Math.sqrt(P.foot)/3.4,mat.roof,mat.body,P.storeys); hs.rotation.y=-spot.a; built.push(hs); setTimeout(()=>grow(hs,1100),RM?0:500);
-    [[1,1],[-1,1],[1,-1],[-1,-1]].forEach(([u,v],t)=>{ const ca=Math.cos(spot.a),sa=Math.sin(spot.a),h=side/2*.82, x=fx+u*h*ca-v*h*sa, z=fz+u*h*sa+v*h*ca; const tr=tree(x,z,1.3); built.push(tr); setTimeout(()=>grow(tr,800),RM?0:700+t*120); });
-    labels['lb-you']=new THREE.Vector3(fx,H(fx,fz)+18,fz); showLabel('lb-you',true);
-    const intro=fits?`Your budget covers it. Here's the rough picture:`:wish?`That home would need about $${fmt(wish.total)}. With <b>$${fmt(budget)}</b>, here's what's possible today:`:`Here's what <b>$${fmt(budget)}</b> could look like:`;
-    await say(`${intro}<dl class="est"><dt>Private land, 30-year lease · ${fmt(P.land)} m²</dt><dd>$${fmt(P.landCost)}</dd><dt>Home · ${fmt(P.floor)} m²${P.storeys===2?' over two storeys':''}, commons share included</dt><dd>$${fmt(P.build)}</dd><dt class="tot">Rough total</dt><dd class="tot">$${fmt(P.total)}</dd></dl>`,500);
-    if(!fits&&P.floor>=MAX_FLOOR&&budget>P.total*1.1) await say(`Your budget goes beyond the largest home we've planned so far. That's a good conversation for the design phase.`,300);
     if(first) await say(`Your private land is twice your home's footprint. Everything around it, the green heart and the shared spaces, belongs to all the families together.`,400);
     first=false;
-    const next=await askChoice(['That feels right','Try another budget','Change my home type']);
     if(next==='That feels right') break;
-    if(next==='Change my home type'){ await say(`Sure. Which one?`); profile.homeType=await typeOf(); askB=false; } else askB=true;
+    if(next==='Shape my home again'){
+      await say(`Sure. Add or remove rooms, then tap "This is my home".`);
+      await ask((box,done)=>{ const r=document.createElement('div'); r.className='row';
+        [['B2','+ Bedroom with bathroom'],['B','+ Master bedroom'],['C','+ Bathroom & storage']].forEach(([k,label])=>{ const b=button(label,'chip'); b.type='button'; b.onclick=()=>{ if(footOf([...mods,k])<=MAX_FOOT){ mods=[...mods,k]; wingHint=0; profile.builderEdits=(profile.builderEdits||0)+1; P=draw(false);} }; r.append(b); });
+        const undo=button('Remove last room','ghost'); undo.type='button'; undo.onclick=()=>{ if(mods.length>1){ mods=mods.slice(0,-1); wingHint=0; P=draw(false);} };
+        const ok=button('This is my home'); ok.onclick=()=>{ me(`My home: ${fmt(priceOf(mods).foot)} m²`); done(); };
+        r.append(undo,ok); box.append(r); });
+      P=priceOf(mods); profile.modules=mods.map(k=>MODULES[k].name);
+    }
   }
-  scene.remove(preview.grp);
   await say(`Perfect. Please treat these numbers as rough. Final prices are set once the founding families agree on a shared vision: materials and style, what we build in the commons, shared water and energy, and more.`,700);
 
   /* ---------- 4. The village ---------- */
   stepTo(4); showLabel('lb-you',false); orbTarget.set(CX,30,CZ);
   camTo({tx:CX,ty:0,tz:CZ,r:340,pitch:1.0,yaw:cam.yaw+.6},4000);
-  homeSpots(profile.families-1,[fx,fz]).forEach(([x,z,a],j)=>setTimeout(()=>{ const m=rectPlot(x,z,17.3,a,FAM[j%FAM.length]); tween(m.grp.position,'y',0,1400); tween(m.fill.material,'opacity',.22,1400); tween(m.line.material,'opacity',.65,1400);
-    const hh=house(x,z,3.6,0x8e9a86,0xe8dcc0,j%3===0?2:1); hh.rotation.y=-a; hh.children.forEach(c=>{c.material=c.material.clone();c.material.transparent=true;c.material.opacity=.6;}); grow(hh,1000); },RM?0:j*160));
+  homeSpots(profile.families-1,[fx,fz,34]).forEach(([x,z,a],j)=>setTimeout(()=>{ const c=CONFIGS[1+(j%3)], ms=[...c.row,...c.wing], p=priceOf(ms);
+    const home=buildHome(x,z,a,ms,c.wing.length,0x8e9a86,.7,false); home.objs.forEach(o=>grow(o,1000));
+    const w=home.U+4, m=rectPlot(x,z,w,a,FAM[j%FAM.length],Math.max(home.V+4,p.land/w)); tween(m.grp.position,'y',0,1400); tween(m.fill.material,'opacity',.22,1400); tween(m.line.material,'opacity',.65,1400); },RM?0:j*160));
   await say(`Now picture the ${profile.families-1} other families you imagined, each adding their own answers to this page. All the homes and shared buildings fit within the ${fmt(VILLAGE_BUILDABLE)} m² the law allows, and the green heart stays open.`,900);
   await say(`When two wishes collide, I don't pick a winner. I show the families the options and the trade-offs, and they decide together.`,600);
   showLabel('lb-vision',true);
-  await say(`You told me: “${esc(short(profile.vision,110))}” The co-design is where that becomes real, with families chosen because they share it.`,800);
+  await say(`You told me: “${esc(short(profile.vision,110))}” The co-design is where that becomes real, with a tribe of families chosen because they share it.`,800);
   const aiX=await askAsara('closing','');
   if(aiX) await say(esc(aiX.reply),600);
-  await say(`So, ${N}: places are limited, and the families chosen first will shape the village with us, even how many families it holds. The founder personally reviews every application and invites the families who fit to meet. If this already feels like your village, now is the moment.`,700);
+  await say(`One honest question, ${N}: could you see your family living here?`);
+  profile.fit=await askChoice(['Yes, I can','Maybe, I need to think','Not really']);
+  const homeRef=profile.homeName?esc(profile.homeName):'your home';
+  if(profile.fit==='Yes, I can') await say(`That's all I needed to hear.`,400);
+  else if(profile.fit==='Maybe, I need to think') await say(`That's fair. A decision like this deserves time. I can save ${homeRef} so it's waiting for you when you're ready.`,500);
+  else await say(`Thank you for being honest. You can still save ${homeRef}. The village will keep growing, and it may grow toward you.`,500);
+  if(profile.fit!=='Not really') await say(`So, ${N}: places are limited, and the families chosen first will shape the village with us, even how many families it holds. The founder personally reviews every application and invites the families who fit to meet. If this already feels like your village, now is the moment.`,700);
   const j=await say(`Here's the journey from here:`,200);
   const ul=document.createElement('ul'); ul.className='journey';
   ul.innerHTML=`<li class="now"><b>Apply</b>You're here. Your answers and sketch join your application.</li><li><b>Selection</b>The founder meets shortlisted families in person.</li><li><b>Co-design</b>The founding families shape the village with me, week by week.</li><li><b>Vote</b>Every family approves the final layout.</li><li><b>Build</b>The village takes form on this land.</li>`;
@@ -845,69 +1112,87 @@ async function run(){
   const openCard=()=>{
     idleSpin=0; renderer.render(scene,camera);
     $('card-img').src=renderer.domElement.toDataURL('image/jpeg',.85);
-    $('card-title').textContent=`${name}'s place in AIGA Village`;
+    $('card-style').innerHTML=`<div class="thumb">${styleFace(sty)}</div><div><span>My style</span><b>${sty.name}</b></div>`; $('card-style').hidden=false;
+    $('card-title').textContent=profile.homeName?`${profile.homeName} · ${name}'s home in AIGA Village`:`${name}'s place in AIGA Village`;
     $('card-quote').textContent=profile.belief?`“${profile.belief}”`:''; $('card-quote').hidden=!profile.belief;
     $('card-vision').textContent=`My ideal village: ${profile.vision}`;
     const bits=[ profile.kids==='No children'?'No children':`${profile.kids} ${profile.kids==='1'?'child':'children'}${profile.ages?` (${profile.ages})`:''}`,
       `Village of about ${profile.families} families`, `Food ${profile.food}/10`, profile.meat==='No, plant-based'?'Plant-based':profile.meat==='Sometimes'?'Eats meat sometimes':'Eats meat',
-      `${MATERIALS[profile.material].label} home`, profile.privacy<=4?'Big-family spirit':profile.privacy>=7?'Values privacy':'Balance of both' ];
+      `${sty.name} · ${profile.homeType}`, profile.privacy<=4?'Big-family spirit':profile.privacy>=7?'Values privacy':'Balance of both' ];
     if(profile.film) bits.push(`Film: ${profile.film}`);
     $('card-profile').textContent=bits.join(' · ');
     const cw=$('card-wishes'); cw.innerHTML=''; profile.spaces.forEach(k=>{const s=document.createElement('span');s.className='chip';s.setAttribute('aria-pressed','true');s.textContent=SPACES[k];cw.append(s);});
-    $('cf-plot').textContent=`${fmt(P.land)} m²`; $('cf-area').textContent=`${fmt(P.floor)} m²${P.storeys===2?' · 2 fl.':''}`; $('cf-hub').textContent=`$${fmt(P.total)}`;
+    $('cf-plot').textContent=`${fmt(P.land)} m²`; $('cf-area').textContent=`${fmt(P.floor)} m² · ${bedroomsOf(mods)} bed`; $('cf-hub').textContent=`$${fmt(P.total)}`;
     $('card').classList.add('on'); $('card-close').focus();
   };
   const DIRS=['east','south-east','south','south-west','west','north-west','north','north-east'];
-  const buttons=(withApply)=>{
+  const buttons=(state)=>{
     actions.innerHTML='';
     const r=document.createElement('div'); r.className='row';
-    const c=button('See my dream card',withApply?'ghost':'btn small'), g=button('Explore the map','ghost');
-    if(withApply){ const b=button('Apply for a place'); b.onclick=apply; r.append(b); }
+    const ready=profile.fit==='Yes, I can';
+    if(state!=='applied'){ const ap=button('Apply for a place',ready||state==='saved'?'btn small':'ghost'); ap.onclick=()=>contact('application'); r.append(ap); }
+    if(state==='open'){ const sv=button(`Save ${profile.homeName?'“'+short(profile.homeName,20)+'”':'my home'}`,ready?'ghost':'btn small'); sv.onclick=()=>contact('lead'); r.append(sv); }
+    const c=button('See my dream card','ghost'), g=button('Explore the map','ghost');
     r.append(c,g); actions.append(r);
     c.onclick=openCard; g.onclick=()=>{ g.textContent='Drag to look around'; idleSpin=0; };
   };
-  const payload=(email,phone)=>{
+  let stageDone='open';
+  const payload=(email,phone,stage)=>{
     const utm={}; new URLSearchParams(location.search).forEach((v,k)=>{ if(/^utm_|^(fbclid|gclid|ttclid)$/.test(k)) utm[k]=v.slice(0,200); });
-    return { applicantId, consent:true, firstName:name, email, phone,
+    return { applicantId, consent:true, stage, firstName:name, email, phone,
       profile:{ belief:profile.belief, film:profile.film||undefined, kids:profile.kids, ages:profile.ages||undefined, vision:profile.vision,
         visionFollowUpQuestion:profile.visionFollowUpQuestion, visionFollowUp:profile.visionFollowUp||undefined, childhood:profile.wish||undefined,
         families:profile.families, familiesAnswer:profile.familiesAnswer, privacy:profile.privacy, spaces:profile.spaces.map(k=>SPACES[k]),
-        idea:profile.idea||undefined, food:profile.food, meat:profile.meat, meatOk:profile.meatOk, material:MATERIALS[profile.material].label,
-        materials:profile.materials, homeType:HOME_TYPES[profile.homeType].label, wishes:[...wishes].map(w=>WISH[w]),
+        idea:profile.idea||undefined, food:profile.food, meat:profile.meat, meatOk:profile.meatOk, material:sty.name, stylesLiked:profile.stylesLiked, stylesPassed:profile.stylesPassed,
+        materials:profile.materials, homeType:profile.homeType, modules:profile.modules, wishes:[...wishes].map(w=>WISH[w]),
+        homeName:profile.homeName||undefined, builderEdits:profile.builderEdits||0, fit:profile.fit,
         direction:DIRS[((Math.round(spot.a/(Math.PI/4))%8)+8)%8] },
       plan:{ budget, land:P.land, floor:P.floor, storeys:P.storeys, total:P.total }, utm };
   };
-  const apply=async()=>{
-    actions.innerHTML=''; me('Apply for a place');
-    if(!applyOpen){ await say(`Applications open very soon, ${N}. Keep your dream card, and come back in a few days.`,200); buttons(true); return; }
-    await say(`Wonderful. Where can the founder reach you? An email, a WhatsApp number, or both.`);
-    const sent=await ask((box,done)=>{
-      const f=document.createElement('form'); f.className='apply-form'; f.noValidate=true;
-      f.innerHTML=`<input type="email" id="apply-email" autocomplete="email" placeholder="Email" aria-label="Email">
-        <input type="tel" id="apply-phone" autocomplete="tel" placeholder="WhatsApp number, with country code" aria-label="WhatsApp number">
-        <label class="check"><input type="checkbox" id="apply-consent"><span>I agree that AIGA Village keeps my answers and sketch and contacts me about my application. I can ask for them to be deleted at any time.</span></label>
-        <div class="hint" role="alert"></div>`;
-      const go=button('Send my application'); f.append(go);
-      const err=f.querySelector('.hint');
-      f.addEventListener('submit',async e=>{ e.preventDefault();
-        const email=f.querySelector('#apply-email').value.trim(), phone=f.querySelector('#apply-phone').value.trim();
-        if(!email&&!phone){ err.textContent='Add an email or a WhatsApp number so the founder can reach you.'; return; }
-        if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ err.textContent="That email doesn't look right. Check it and try again."; return; }
-        if(phone&&!/^[+0-9 ()-]{6,32}$/.test(phone)){ err.textContent='Use digits, spaces and an optional + for the WhatsApp number.'; return; }
-        if(!f.querySelector('#apply-consent').checked){ err.textContent='Please tick the box so we can keep your answers.'; return; }
-        go.disabled=true; go.textContent='Sending…'; err.textContent='';
-        try{
-          const r=await fetch('/api/applications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload(email,phone))});
-          const d=await r.json().catch(()=>({}));
-          if(!r.ok){ err.textContent=d.error||'Something went wrong. Please try again.'; go.disabled=false; go.textContent='Send my application'; return; }
-          me(email||phone); done(true);
-        }catch{ err.textContent='Your connection dropped. Please try again.'; go.disabled=false; go.textContent='Send my application'; }
+  let contactKnown=null;
+  const contact=async(stage)=>{
+    const isApp=stage==='application';
+    actions.innerHTML=''; me(isApp?'Apply for a place':`Save ${profile.homeName||'my home'}`);
+    if(!applyOpen){ await say(`Saving and applying open very soon, ${N}. Keep your dream card, and come back in a few days.`,200); buttons(stageDone); return; }
+    let sent=false;
+    if(contactKnown){ sent=await send(stage,contactKnown.email,contactKnown.phone,null); }
+    else {
+      await say(isApp?`Wonderful. Where can the founder reach you? An email, a WhatsApp number, or both.`:`Of course. Where should we keep ${homeRef} for you? An email, a WhatsApp number, or both.`);
+      sent=await ask((box,done)=>{
+        const f=document.createElement('form'); f.className='apply-form'; f.noValidate=true;
+        f.innerHTML=`<input type="email" id="apply-email" autocomplete="email" placeholder="Email" aria-label="Email">
+          <input type="tel" id="apply-phone" autocomplete="tel" placeholder="WhatsApp number, with country code" aria-label="WhatsApp number">
+          <label class="check"><input type="checkbox" id="apply-consent"><span>${isApp?'I agree that AIGA Village keeps my answers and sketch and contacts me about my application.':'I agree that AIGA Village keeps my home and answers and contacts me about the village.'} I can ask for them to be deleted at any time.</span></label>
+          <div class="hint" role="alert"></div>`;
+        const go=button(isApp?'Send my application':'Save my home'); f.append(go);
+        const err=f.querySelector('.hint');
+        f.addEventListener('submit',async e=>{ e.preventDefault();
+          const email=f.querySelector('#apply-email').value.trim(), phone=f.querySelector('#apply-phone').value.trim();
+          if(!email&&!phone){ err.textContent='Add an email or a WhatsApp number so we can reach you.'; return; }
+          if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ err.textContent="That email doesn't look right. Check it and try again."; return; }
+          if(phone&&!/^[+0-9 ()-]{6,32}$/.test(phone)){ err.textContent='Use digits, spaces and an optional + for the WhatsApp number.'; return; }
+          if(!f.querySelector('#apply-consent').checked){ err.textContent='Please tick the box so we can keep your answers.'; return; }
+          go.disabled=true; go.textContent=isApp?'Sending…':'Saving…'; err.textContent='';
+          const ok=await send(stage,email,phone,err);
+          if(ok){ contactKnown={email,phone}; me(email||phone); done(true); } else { go.disabled=false; go.textContent=isApp?'Send my application':'Save my home'; }
+        });
+        box.append(f); setTimeout(()=>f.querySelector('#apply-email').focus(),50);
       });
-      box.append(f); setTimeout(()=>f.querySelector('#apply-email').focus(),50);
-    });
-    if(sent){ await say(`Thank you, ${N}. Your application is with the founder now, together with your vision and your sketch. You'll hear from us by email or WhatsApp.`,300); buttons(false); }
+    }
+    if(!sent){ buttons(stageDone); return; }
+    if(isApp){ stageDone='applied'; await say(`Thank you, ${N}. Your application is with the founder now, together with your vision and ${homeRef}. You'll hear from us by email or WhatsApp.`,300); }
+    else { stageDone='saved'; await say(`Saved. ${profile.homeName?esc(profile.homeName):'Your home'} is waiting for you, ${N}, and the AIGA team will be in touch. Whenever you're ready, you can apply from here.`,300); }
+    buttons(stageDone);
   };
-  buttons(true);
+  const send=async(stage,email,phone,err)=>{
+    try{
+      const r=await fetch('/api/applications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload(email,phone,stage))});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok){ if(err) err.textContent=d.error||'Something went wrong. Please try again.'; else await say(esc(d.error||'Something went wrong. Please try again.')); return false; }
+      return true;
+    }catch{ if(err) err.textContent='Your connection dropped. Please try again.'; else await say('Your connection dropped. Please try again.'); return false; }
+  };
+  buttons('open');
 }
 $('card-close').onclick=()=>{$('card').classList.remove('on'); idleSpin=0.00003;};
 $('restart').onclick=()=>location.reload();

@@ -28,8 +28,10 @@ const VILLAGE_FACTS = `AIGA Village facts (use only these, never invent others):
 - Families are chosen for shared values and fit, not money alone. Then they co-design the village together and vote.`;
 
 const SYSTEM_PROMPT = `You are Asara, the guide of AIGA Village, speaking with someone who is exploring whether to apply.
+AIGA Village empowers a family leader, a mother or a father, to co-create the right place for their family with people who share
+their values. It is about aligning with yourself and finding your tribe. You listen far more than you talk.
 Your one job right now: make them feel truly heard. Reflect back what they shared in your own words, warmly and specifically,
-and show genuine curiosity about their life and vision.
+and show genuine curiosity about their life and vision. Where it fits naturally, help them see themselves as the co-creator, not a buyer.
 
 Rules:
 - Reply in the same language the person wrote in.
@@ -44,11 +46,11 @@ Rules:
 ${VILLAGE_FACTS}`;
 
 const MOMENT_GUIDE: Record<string, string> = {
-  belief: 'They just told you who they are and what they believe. Reflect it back. followUp must be null.',
+  belief: 'They just told you, in one sentence, what they believe in. Reflect it back and connect it to finding families who share it. followUp must be null.',
   film: 'They shared a film line or film that represents them. Respond briefly and warmly about what it says about them. followUp must be null.',
-  vision: 'They described their ideal village (to raise their children, if they have any). Reflect the 1-3 strongest themes in your own words, then ask ONE curious follow-up question about a specific detail they mentioned.',
+  vision: 'This is the very first thing they told you, before their name: the perfect place for their family to wake up every morning. Reflect the 1-3 strongest themes in your own words, then ask ONE curious follow-up question about a specific detail they mentioned.',
   vision_followup: 'They answered your follow-up question about their vision. Acknowledge it in one sentence. followUp must be null.',
-  childhood: 'They shared something from their childhood they want their children to have (or what is missing where they live now). Reflect it in one sentence. followUp must be null.',
+  childhood: 'They shared what is missing from their family\'s life today. Reflect it with empathy in one sentence and, without promises, hint that this is what a village of like-minded families is for. followUp must be null.',
   idea: 'They suggested their own idea for a shared space in the village. Respond with genuine interest in one sentence and say it will go into their application for the families to consider. followUp must be null.',
   closing: 'Write one personal sentence (in "reply") that connects what they shared to joining the village, as the last thing before they decide to apply. No pressure, no promises. followUp must be null.',
 };
@@ -150,6 +152,8 @@ const long = z.string().trim().max(1500);
 const ApplicationInput = z.object({
   applicantId: z.string().uuid(),
   consent: z.literal(true),
+  /** 'lead' = saved their home for later; 'application' = applied for a place. */
+  stage: z.enum(['lead', 'application']).default('application'),
   firstName: z.string().trim().min(1).max(60),
   email: z.preprocess(blankToUndefined, z.string().trim().email().max(254).optional()),
   phone: z.preprocess(blankToUndefined, z.string().trim().min(6).max(32).regex(/^[+0-9 ()-]+$/).optional()),
@@ -171,10 +175,16 @@ const ApplicationInput = z.object({
     meat: short.optional(),
     meatOk: short.optional(),
     material: short.optional(),
+    stylesLiked: z.array(short).max(20).optional(),
+    stylesPassed: z.array(short).max(20).optional(),
     materials: z.number().int().min(1).max(10).optional(),
     homeType: short.optional(),
+    modules: z.array(short).max(20).optional(),
     wishes: z.array(short).max(10).optional(),
     direction: short.optional(),
+    homeName: z.string().trim().max(40).optional(),
+    builderEdits: z.number().int().min(0).max(1000).optional(),
+    fit: short.optional(),
   }),
   plan: z
     .object({
@@ -190,6 +200,27 @@ const ApplicationInput = z.object({
 
 export type Application = z.infer<typeof ApplicationInput>;
 export { ApplicationInput };
+
+/**
+ * 0-100: how invested someone was. Rewards effort and self-expression (the "IKEA effect" applicant):
+ * a rich vision, answering the follow-up, their own idea, shaping the home, naming it, liking styles,
+ * and saying they can see their family here.
+ */
+export function engagementScore(app: Application): number {
+  const p = app.profile;
+  const vision = p.vision?.length ?? 0;
+  let score = vision >= 120 ? 15 : vision >= 40 ? 10 : vision > 0 ? 5 : 0;
+  if (p.visionFollowUp) score += 10;
+  if (p.childhood) score += 5;
+  if (p.idea) score += 15;
+  score += Math.min(20, (p.builderEdits ?? 0) * 4);
+  if (p.homeType === 'Built my own') score += 10;
+  if (p.homeName) score += 10;
+  if ((p.stylesLiked?.length ?? 0) > 0) score += 5;
+  if (p.fit === 'Yes, I can') score += 10;
+  else if (p.fit === 'Maybe, I need to think') score += 4;
+  return Math.min(100, score);
+}
 
 /** Flat CRM attributes, one column each in J-Mission's exports. */
 export function toCrmAttributes(app: Application): Record<string, string | number> {
@@ -211,9 +242,12 @@ export function toCrmAttributes(app: Application): Record<string, string | numbe
     aiga_food_quality_1to10: p.food,
     aiga_eats_meat: p.meat,
     aiga_minds_neighbours_meat: p.meatOk,
-    aiga_material: p.material,
+    aiga_style: p.material,
+    aiga_styles_liked: p.stylesLiked?.join(', '),
+    aiga_styles_passed: p.stylesPassed?.join(', '),
     aiga_materials_importance_1to10: p.materials,
     aiga_home_type: p.homeType,
+    aiga_home_modules: p.modules?.join(', '),
     aiga_home_wishes: p.wishes?.join(', '),
     aiga_plot_direction: p.direction,
     aiga_budget_usd: app.plan?.budget,
@@ -221,7 +255,12 @@ export function toCrmAttributes(app: Application): Record<string, string | numbe
     aiga_home_m2: app.plan?.floor,
     aiga_storeys: app.plan?.storeys,
     aiga_estimate_usd: app.plan?.total,
-    aiga_applied_at: new Date().toISOString(),
+    aiga_stage: app.stage,
+    aiga_home_name: p.homeName,
+    aiga_builder_edits: p.builderEdits,
+    aiga_fit: p.fit,
+    aiga_engagement_score: engagementScore(app),
+    [app.stage === 'lead' ? 'aiga_saved_at' : 'aiga_applied_at']: new Date().toISOString(),
   };
   return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined && v !== '')) as Record<string, string | number>;
 }
@@ -229,14 +268,21 @@ export function toCrmAttributes(app: Application): Record<string, string | numbe
 export function memoryNote(app: Application): string {
   const p = app.profile;
   return [
-    `Applied to AIGA Village through the 3D onboarding with Asara.`,
+    app.stage === 'lead'
+      ? `Saved their home in AIGA Village (not applied yet) through the 3D onboarding with Asara.`
+      : `Applied to AIGA Village through the 3D onboarding with Asara.`,
+    p.homeName ? `They named their home "${p.homeName}".` : '',
+    p.fit ? `Could they see their family living here? ${p.fit}.` : '',
+    `Engagement score: ${engagementScore(app)}/100.`,
     p.belief ? `Who they are: ${p.belief}` : '',
     p.vision ? `Their ideal village: ${p.vision}` : '',
     p.visionFollowUp ? `More on that (${p.visionFollowUpQuestion ?? 'follow-up'}): ${p.visionFollowUp}` : '',
     p.childhood ? `Childhood / missing today: ${p.childhood}` : '',
     p.idea ? `Their own idea for the village: ${p.idea}` : '',
+    p.stylesLiked?.length ? `Home styles they loved: ${p.stylesLiked.join(', ')}.` : '',
     p.kids ? `Children: ${p.kids}${p.ages ? ` (${p.ages})` : ''}` : '',
     p.families ? `Imagines a village of about ${p.families} families.` : '',
+    p.modules?.length ? `Home sketch (${p.homeType ?? 'custom'}): ${p.modules.join(', ')}.` : '',
     app.plan ? `Budget about $${Math.round(app.plan.budget).toLocaleString('en-US')}; sketch: ${app.plan.floor} m² home on ${app.plan.land} m² of land.` : '',
   ].filter(Boolean).join('\n');
 }
