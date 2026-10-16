@@ -4,6 +4,7 @@ import { isPrivateAddress, assertPublicHttpsUrl } from '../src/web/guards.js';
 import {
   ApplicationInput,
   toCrmAttributes,
+  engagementScore,
   memoryNote,
   cleanAsaraOutput,
   buildAsaraMessages,
@@ -87,6 +88,26 @@ describe('Applications to J-Mission', () => {
     const note = memoryNote(ApplicationInput.parse(sample));
     assert.match(note, /Their ideal village: Kids running/);
     assert.match(note, /150 m² home on 300 m² of land/);
+  });
+});
+
+describe('Leads and engagement', () => {
+  test('a saved home is a lead with its own timestamp', () => {
+    const attrs = toCrmAttributes(ApplicationInput.parse({ ...sample, stage: 'lead' }));
+    assert.equal(attrs.aiga_stage, 'lead');
+    assert.ok('aiga_saved_at' in attrs && !('aiga_applied_at' in attrs));
+  });
+
+  test('stage defaults to application', () => {
+    assert.equal(ApplicationInput.parse(sample).stage, 'application');
+  });
+
+  test('effort and self-expression raise the engagement score, capped at 100', () => {
+    const low = engagementScore(ApplicationInput.parse({ ...sample, profile: { vision: 'ok' } }));
+    const high = engagementScore(ApplicationInput.parse({ ...sample, profile: { ...sample.profile, vision: 'x'.repeat(200),
+      visionFollowUp: 'yes', childhood: 'trees', idea: 'a library', builderEdits: 9, homeType: 'Built my own', homeName: 'Rumah Senja', fit: 'Yes, I can' } }));
+    assert.ok(low < 10, `low was ${low}`);
+    assert.equal(high, 100);
   });
 });
 

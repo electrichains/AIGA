@@ -70,6 +70,10 @@ body{background:var(--night);color:var(--text);font-family:var(--body);font-size
 @keyframes breathe{50%{transform:scale(1.15);box-shadow:0 0 34px rgba(233,185,106,.85)}}
 .g-name{font-family:var(--display);font-size:17px}
 .g-sub{font-size:12px;color:var(--muted)}
+.g-prog{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:5px;min-width:0}
+.g-prog-bar{width:96px;height:5px;border-radius:99px;background:var(--line);overflow:hidden}
+.g-prog-bar i{display:block;height:100%;width:0;background:var(--sun);border-radius:99px;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.g-prog span{font-size:11px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
 #log{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
 .msg{max-width:92%;line-height:1.55;font-size:15px}
 .msg.ai{color:var(--text)}
@@ -243,6 +247,7 @@ input::placeholder{color:#6f786b}
   <div class="g-head">
     <div class="g-orb" id="gorb"></div>
     <div><div class="g-name">Asara</div><div class="g-sub">AIGA Village guide</div></div>
+    <div class="g-prog" aria-live="polite"><div class="g-prog-bar"><i id="prog-fill"></i></div><span id="prog-txt">Your village profile · 0%</span></div>
   </div>
   <div id="log" aria-live="polite"></div>
   <div id="actions"></div>
@@ -565,7 +570,7 @@ async function say(html,pause=500){
   m.innerHTML=html; log.scrollTop=log.scrollHeight; await wait(pause); return m;
 }
 function me(text){ const m=document.createElement('div'); m.className='msg me'; m.textContent=text; log.appendChild(m); log.scrollTop=log.scrollHeight; }
-function ask(build){ return new Promise(res=>{ actions.innerHTML=''; build(actions,v=>{actions.innerHTML='';res(v);}); }); }
+function ask(build){ return new Promise(res=>{ actions.innerHTML=''; build(actions,v=>{actions.innerHTML=''; res(v); setTimeout(updateProgress,0);}); }); }
 function button(label,cls='btn small'){ const b=document.createElement('button'); b.className=cls; b.textContent=label; return b; }
 const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=n=>n.toLocaleString('en-US');
@@ -586,6 +591,13 @@ async function askAsara(moment,text,extra={}){
   finally{ thinking=false; $('gorb').classList.remove('thinking'); }
 }
 const profile={privacy:5,spaces:[]};
+/* "Your village profile": how much of their picture they've filled in. People like to finish what they start. */
+function updateProgress(){
+  const done=[profile.belief,profile.kids,profile.vision,profile.familiesAnswer,profile.privacyAnswered,profile.spacesAnswered,profile.food,profile.meat,
+    profile.stylesLiked,profile.materials,profile.modules,profile.homeName!==undefined||undefined,profile.budget,profile.fit].filter(v=>v!==undefined).length;
+  const pct=Math.round(done/14*100);
+  $('prog-fill').style.width=pct+'%'; $('prog-txt').textContent=`Your village profile · ${pct}%`;
+}
 function askText(placeholder,{optional=false,cta='Continue'}={}){ return ask((box,done)=>{
   const row=document.createElement('form'); row.className='row';
   const inp=document.createElement('input'); inp.type='text'; inp.id='q-'+Math.random().toString(36).slice(2,8); inp.placeholder=placeholder; inp.setAttribute('aria-label',placeholder); inp.maxLength=160;
@@ -884,7 +896,7 @@ async function run(){
   $('lb-vision').textContent=`“${short(profile.vision,90)}”`; labels['lb-vision']=new THREE.Vector3(CX,22,CZ); showLabel('lb-vision',true);
   tween(hubRing.material,'opacity',.95,2000); tween(uni.uHub,'value',1,2000); showLabel('lb-hub',true);
   await say(`At the heart, a green commons all the families share. I've put your vision right here, because this is where it would start. You decide how it feels. Where are you on this scale?`);
-  profile.privacy=await askScale('One big family','My own retreat',5);
+  profile.privacy=await askScale('One big family','My own retreat',5); profile.privacyAnswered=true;
   const hubScale=1.3-(profile.privacy-1)/9*.55;
   tween(hubRing.scale,'x',hubScale,1500); tween(hubRing.scale,'y',hubScale,1500); tween(uni.uHubR,'value',HUB_R*hubScale,1500);
   if(profile.privacy<=4) wishes.add('commons'); else if(profile.privacy>=7) wishes.add('quiet');
@@ -892,7 +904,7 @@ async function run(){
   showLabel('lb-hub',false);
 
   await say(`What would you love to find here? Choose freely. I'll build whatever you pick.`);
-  profile.spaces=await askMulti(SPACES,'Build these');
+  profile.spaces=await askMulti(SPACES,'Build these'); profile.spacesAnswered=true;
   await say(`And is there something you envision that isn't on the list? An outdoor cinema, a library, a tree house for the kids… anything at all.`);
   profile.idea=await askText('Your idea for the village',{optional:true,cta:'Add it'});
   if(profile.idea){ SPACES.custom=profile.idea; SPACE_SHORT.custom=short(profile.idea,24); profile.spaces.push('custom');
@@ -1000,7 +1012,7 @@ async function run(){
     built=home.objs; if(styled) paint(false);
     const w=home.U+4, d=Math.max(home.V+4,P.land/w);
     plotObj=rectPlot(fx,fz,w,spot.a,'#e9b96a',d); tween(plotObj.grp.position,'y',0,600); tween(plotObj.fill.material,'opacity',.35,600); tween(plotObj.line.material,'opacity',1,600);
-    $('lb-you').textContent=`Your home · ${fmt(P.foot)} m²`; labels['lb-you']=new THREE.Vector3(fx,H(fx,fz)+14,fz); showLabel('lb-you',true);
+    $('lb-you').textContent=profile.homeName||`Your home · ${fmt(P.foot)} m²`; labels['lb-you']=new THREE.Vector3(fx,H(fx,fz)+14,fz); showLabel('lb-you',true);
     return P;
   };
   scene.remove(preview.grp);
@@ -1019,7 +1031,7 @@ async function run(){
     const refresh=()=>{ sum.innerHTML=summary(); const lv=mods.find(k=>MODULES[k].kind==='living'); rowB.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.k===lv))); };
     const change=(next,newWing=null)=>{ if(footOf(next)>MAX_FOOT){ hint.textContent=`That's the largest home in this sketch (${MAX_FOOT} m²). Bigger homes are a conversation for the design phase.`; return; }
       if(!next.length){ hint.textContent='A home needs at least one room.'; return; }
-      hint.textContent=''; mods=next; wingHint=newWing===null?0:newWing; P=draw(false); refresh(); };
+      hint.textContent=''; mods=next; wingHint=newWing===null?0:newWing; profile.builderEdits=(profile.builderEdits||0)+1; P=draw(false); refresh(); };
     [['B2','+ Bedroom with bathroom'],['B','+ Master bedroom'],['C','+ Bathroom & storage']].forEach(([k,label])=>{ const b=button(label,'chip'); b.type='button'; b.onclick=()=>change([...mods,k]); rowA.append(b); });
     const lvLabel=document.createElement('span'); lvLabel.textContent='Living:'; lvLabel.style.cssText='font-size:13px;color:var(--muted)'; rowB.append(lvLabel);
     [['L1','Compact'],['L2','Medium'],['L3','Large']].forEach(([k,label])=>{ const b=button(label,'chip'); b.type='button'; b.dataset.k=k;
@@ -1032,13 +1044,16 @@ async function run(){
   await say(`You built that. Now let me dress it in your style: <b>${sty.name}</b>.`,200);
   styled=true; paint(true); await wait(1500);
   await say(`There it is. Your home, on your land.`,500);
+  await say(`Every home in the village gets a name. What would you call yours?`);
+  profile.homeName=(await askText('e.g. Rumah Senja, Casa Laut, The Nest',{optional:true,cta:'Name it'})).slice(0,40);
+  if(profile.homeName){ $('lb-you').textContent=profile.homeName; await say(`<b>${esc(profile.homeName)}</b>. I love it. It's written on your plot now.`,500); }
   profile.homeType=startCfg?startCfg.label:'Built my own';
   profile.modules=mods.map(k=>MODULES[k].name);
 
   let budget=0, first=true;
   while(true){
     await say(first?`Beautiful. With its land and your share of the commons, this home comes to roughly <b>$${fmt(P.total)}</b>. Now it's entirely your call: what budget feels comfortable for you?`:`Of course. What budget would you like to try?`);
-    budget=await askBudget();
+    budget=await askBudget(); profile.budget=budget;
     const breakdown=p=>`<dl class="est"><dt>Private land, 30-year lease · ${fmt(p.land)} m²</dt><dd>$${fmt(p.landCost)}</dd><dt>Home · ${fmt(p.foot)} m², commons share included</dt><dd>$${fmt(p.build)}</dd><dt class="tot">Rough total</dt><dd class="tot">$${fmt(p.total)}</dd></dl>`;
     let next;
     if(P.total<=budget){
@@ -1059,7 +1074,7 @@ async function run(){
     if(next==='Shape my home again'){
       await say(`Sure. Add or remove rooms, then tap "This is my home".`);
       await ask((box,done)=>{ const r=document.createElement('div'); r.className='row';
-        [['B2','+ Bedroom with bathroom'],['B','+ Master bedroom'],['C','+ Bathroom & storage']].forEach(([k,label])=>{ const b=button(label,'chip'); b.type='button'; b.onclick=()=>{ if(footOf([...mods,k])<=MAX_FOOT){ mods=[...mods,k]; wingHint=0; P=draw(false);} }; r.append(b); });
+        [['B2','+ Bedroom with bathroom'],['B','+ Master bedroom'],['C','+ Bathroom & storage']].forEach(([k,label])=>{ const b=button(label,'chip'); b.type='button'; b.onclick=()=>{ if(footOf([...mods,k])<=MAX_FOOT){ mods=[...mods,k]; wingHint=0; profile.builderEdits=(profile.builderEdits||0)+1; P=draw(false);} }; r.append(b); });
         const undo=button('Remove last room','ghost'); undo.type='button'; undo.onclick=()=>{ if(mods.length>1){ mods=mods.slice(0,-1); wingHint=0; P=draw(false);} };
         const ok=button('This is my home'); ok.onclick=()=>{ me(`My home: ${fmt(priceOf(mods).foot)} m²`); done(); };
         r.append(undo,ok); box.append(r); });
@@ -1080,7 +1095,13 @@ async function run(){
   await say(`You told me: “${esc(short(profile.vision,110))}” The co-design is where that becomes real, with families chosen because they share it.`,800);
   const aiX=await askAsara('closing','');
   if(aiX) await say(esc(aiX.reply),600);
-  await say(`So, ${N}: places are limited, and the families chosen first will shape the village with us, even how many families it holds. The founder personally reviews every application and invites the families who fit to meet. If this already feels like your village, now is the moment.`,700);
+  await say(`One honest question, ${N}: could you see your family living here?`);
+  profile.fit=await askChoice(['Yes, I can','Maybe, I need to think','Not really']);
+  const homeRef=profile.homeName?esc(profile.homeName):'your home';
+  if(profile.fit==='Yes, I can') await say(`That's all I needed to hear.`,400);
+  else if(profile.fit==='Maybe, I need to think') await say(`That's fair. A decision like this deserves time. I can save ${homeRef} so it's waiting for you when you're ready.`,500);
+  else await say(`Thank you for being honest. You can still save ${homeRef}. The village will keep growing, and it may grow toward you.`,500);
+  if(profile.fit!=='Not really') await say(`So, ${N}: places are limited, and the families chosen first will shape the village with us, even how many families it holds. The founder personally reviews every application and invites the families who fit to meet. If this already feels like your village, now is the moment.`,700);
   const j=await say(`Here's the journey from here:`,200);
   const ul=document.createElement('ul'); ul.className='journey';
   ul.innerHTML=`<li class="now"><b>Apply</b>You're here. Your answers and sketch join your application.</li><li><b>Selection</b>The founder meets shortlisted families in person.</li><li><b>Co-design</b>The founding families shape the village with me, week by week.</li><li><b>Vote</b>Every family approves the final layout.</li><li><b>Build</b>The village takes form on this land.</li>`;
@@ -1089,7 +1110,7 @@ async function run(){
     idleSpin=0; renderer.render(scene,camera);
     $('card-img').src=renderer.domElement.toDataURL('image/jpeg',.85);
     $('card-style').innerHTML=`<div class="thumb">${styleFace(sty)}</div><div><span>My style</span><b>${sty.name}</b></div>`; $('card-style').hidden=false;
-    $('card-title').textContent=`${name}'s place in AIGA Village`;
+    $('card-title').textContent=profile.homeName?`${profile.homeName} · ${name}'s home in AIGA Village`:`${name}'s place in AIGA Village`;
     $('card-quote').textContent=profile.belief?`“${profile.belief}”`:''; $('card-quote').hidden=!profile.belief;
     $('card-vision').textContent=`My ideal village: ${profile.vision}`;
     const bits=[ profile.kids==='No children'?'No children':`${profile.kids} ${profile.kids==='1'?'child':'children'}${profile.ages?` (${profile.ages})`:''}`,
@@ -1102,56 +1123,73 @@ async function run(){
     $('card').classList.add('on'); $('card-close').focus();
   };
   const DIRS=['east','south-east','south','south-west','west','north-west','north','north-east'];
-  const buttons=(withApply)=>{
+  const buttons=(state)=>{
     actions.innerHTML='';
     const r=document.createElement('div'); r.className='row';
-    const c=button('See my dream card',withApply?'ghost':'btn small'), g=button('Explore the map','ghost');
-    if(withApply){ const b=button('Apply for a place'); b.onclick=apply; r.append(b); }
+    const ready=profile.fit==='Yes, I can';
+    if(state!=='applied'){ const ap=button('Apply for a place',ready||state==='saved'?'btn small':'ghost'); ap.onclick=()=>contact('application'); r.append(ap); }
+    if(state==='open'){ const sv=button(`Save ${profile.homeName?'“'+short(profile.homeName,20)+'”':'my home'}`,ready?'ghost':'btn small'); sv.onclick=()=>contact('lead'); r.append(sv); }
+    const c=button('See my dream card','ghost'), g=button('Explore the map','ghost');
     r.append(c,g); actions.append(r);
     c.onclick=openCard; g.onclick=()=>{ g.textContent='Drag to look around'; idleSpin=0; };
   };
-  const payload=(email,phone)=>{
+  let stageDone='open';
+  const payload=(email,phone,stage)=>{
     const utm={}; new URLSearchParams(location.search).forEach((v,k)=>{ if(/^utm_|^(fbclid|gclid|ttclid)$/.test(k)) utm[k]=v.slice(0,200); });
-    return { applicantId, consent:true, firstName:name, email, phone,
+    return { applicantId, consent:true, stage, firstName:name, email, phone,
       profile:{ belief:profile.belief, film:profile.film||undefined, kids:profile.kids, ages:profile.ages||undefined, vision:profile.vision,
         visionFollowUpQuestion:profile.visionFollowUpQuestion, visionFollowUp:profile.visionFollowUp||undefined, childhood:profile.wish||undefined,
         families:profile.families, familiesAnswer:profile.familiesAnswer, privacy:profile.privacy, spaces:profile.spaces.map(k=>SPACES[k]),
         idea:profile.idea||undefined, food:profile.food, meat:profile.meat, meatOk:profile.meatOk, material:sty.name, stylesLiked:profile.stylesLiked, stylesPassed:profile.stylesPassed,
         materials:profile.materials, homeType:profile.homeType, modules:profile.modules, wishes:[...wishes].map(w=>WISH[w]),
+        homeName:profile.homeName||undefined, builderEdits:profile.builderEdits||0, fit:profile.fit,
         direction:DIRS[((Math.round(spot.a/(Math.PI/4))%8)+8)%8] },
       plan:{ budget, land:P.land, floor:P.floor, storeys:P.storeys, total:P.total }, utm };
   };
-  const apply=async()=>{
-    actions.innerHTML=''; me('Apply for a place');
-    if(!applyOpen){ await say(`Applications open very soon, ${N}. Keep your dream card, and come back in a few days.`,200); buttons(true); return; }
-    await say(`Wonderful. Where can the founder reach you? An email, a WhatsApp number, or both.`);
-    const sent=await ask((box,done)=>{
-      const f=document.createElement('form'); f.className='apply-form'; f.noValidate=true;
-      f.innerHTML=`<input type="email" id="apply-email" autocomplete="email" placeholder="Email" aria-label="Email">
-        <input type="tel" id="apply-phone" autocomplete="tel" placeholder="WhatsApp number, with country code" aria-label="WhatsApp number">
-        <label class="check"><input type="checkbox" id="apply-consent"><span>I agree that AIGA Village keeps my answers and sketch and contacts me about my application. I can ask for them to be deleted at any time.</span></label>
-        <div class="hint" role="alert"></div>`;
-      const go=button('Send my application'); f.append(go);
-      const err=f.querySelector('.hint');
-      f.addEventListener('submit',async e=>{ e.preventDefault();
-        const email=f.querySelector('#apply-email').value.trim(), phone=f.querySelector('#apply-phone').value.trim();
-        if(!email&&!phone){ err.textContent='Add an email or a WhatsApp number so the founder can reach you.'; return; }
-        if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ err.textContent="That email doesn't look right. Check it and try again."; return; }
-        if(phone&&!/^[+0-9 ()-]{6,32}$/.test(phone)){ err.textContent='Use digits, spaces and an optional + for the WhatsApp number.'; return; }
-        if(!f.querySelector('#apply-consent').checked){ err.textContent='Please tick the box so we can keep your answers.'; return; }
-        go.disabled=true; go.textContent='Sending…'; err.textContent='';
-        try{
-          const r=await fetch('/api/applications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload(email,phone))});
-          const d=await r.json().catch(()=>({}));
-          if(!r.ok){ err.textContent=d.error||'Something went wrong. Please try again.'; go.disabled=false; go.textContent='Send my application'; return; }
-          me(email||phone); done(true);
-        }catch{ err.textContent='Your connection dropped. Please try again.'; go.disabled=false; go.textContent='Send my application'; }
+  let contactKnown=null;
+  const contact=async(stage)=>{
+    const isApp=stage==='application';
+    actions.innerHTML=''; me(isApp?'Apply for a place':`Save ${profile.homeName||'my home'}`);
+    if(!applyOpen){ await say(`Saving and applying open very soon, ${N}. Keep your dream card, and come back in a few days.`,200); buttons(stageDone); return; }
+    let sent=false;
+    if(contactKnown){ sent=await send(stage,contactKnown.email,contactKnown.phone,null); }
+    else {
+      await say(isApp?`Wonderful. Where can the founder reach you? An email, a WhatsApp number, or both.`:`Of course. Where should we keep ${homeRef} for you? An email, a WhatsApp number, or both.`);
+      sent=await ask((box,done)=>{
+        const f=document.createElement('form'); f.className='apply-form'; f.noValidate=true;
+        f.innerHTML=`<input type="email" id="apply-email" autocomplete="email" placeholder="Email" aria-label="Email">
+          <input type="tel" id="apply-phone" autocomplete="tel" placeholder="WhatsApp number, with country code" aria-label="WhatsApp number">
+          <label class="check"><input type="checkbox" id="apply-consent"><span>${isApp?'I agree that AIGA Village keeps my answers and sketch and contacts me about my application.':'I agree that AIGA Village keeps my home and answers and contacts me about the village.'} I can ask for them to be deleted at any time.</span></label>
+          <div class="hint" role="alert"></div>`;
+        const go=button(isApp?'Send my application':'Save my home'); f.append(go);
+        const err=f.querySelector('.hint');
+        f.addEventListener('submit',async e=>{ e.preventDefault();
+          const email=f.querySelector('#apply-email').value.trim(), phone=f.querySelector('#apply-phone').value.trim();
+          if(!email&&!phone){ err.textContent='Add an email or a WhatsApp number so we can reach you.'; return; }
+          if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ err.textContent="That email doesn't look right. Check it and try again."; return; }
+          if(phone&&!/^[+0-9 ()-]{6,32}$/.test(phone)){ err.textContent='Use digits, spaces and an optional + for the WhatsApp number.'; return; }
+          if(!f.querySelector('#apply-consent').checked){ err.textContent='Please tick the box so we can keep your answers.'; return; }
+          go.disabled=true; go.textContent=isApp?'Sending…':'Saving…'; err.textContent='';
+          const ok=await send(stage,email,phone,err);
+          if(ok){ contactKnown={email,phone}; me(email||phone); done(true); } else { go.disabled=false; go.textContent=isApp?'Send my application':'Save my home'; }
+        });
+        box.append(f); setTimeout(()=>f.querySelector('#apply-email').focus(),50);
       });
-      box.append(f); setTimeout(()=>f.querySelector('#apply-email').focus(),50);
-    });
-    if(sent){ await say(`Thank you, ${N}. Your application is with the founder now, together with your vision and your sketch. You'll hear from us by email or WhatsApp.`,300); buttons(false); }
+    }
+    if(!sent){ buttons(stageDone); return; }
+    if(isApp){ stageDone='applied'; await say(`Thank you, ${N}. Your application is with the founder now, together with your vision and ${homeRef}. You'll hear from us by email or WhatsApp.`,300); }
+    else { stageDone='saved'; await say(`Saved. ${profile.homeName?esc(profile.homeName):'Your home'} is waiting for you, ${N}, and the AIGA team will be in touch. Whenever you're ready, you can apply from here.`,300); }
+    buttons(stageDone);
   };
-  buttons(true);
+  const send=async(stage,email,phone,err)=>{
+    try{
+      const r=await fetch('/api/applications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload(email,phone,stage))});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok){ if(err) err.textContent=d.error||'Something went wrong. Please try again.'; else await say(esc(d.error||'Something went wrong. Please try again.')); return false; }
+      return true;
+    }catch{ if(err) err.textContent='Your connection dropped. Please try again.'; else await say('Your connection dropped. Please try again.'); return false; }
+  };
+  buttons('open');
 }
 $('card-close').onclick=()=>{$('card').classList.remove('on'); idleSpin=0.00003;};
 $('restart').onclick=()=>location.reload();

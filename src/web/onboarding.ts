@@ -150,6 +150,8 @@ const long = z.string().trim().max(1500);
 const ApplicationInput = z.object({
   applicantId: z.string().uuid(),
   consent: z.literal(true),
+  /** 'lead' = saved their home for later; 'application' = applied for a place. */
+  stage: z.enum(['lead', 'application']).default('application'),
   firstName: z.string().trim().min(1).max(60),
   email: z.preprocess(blankToUndefined, z.string().trim().email().max(254).optional()),
   phone: z.preprocess(blankToUndefined, z.string().trim().min(6).max(32).regex(/^[+0-9 ()-]+$/).optional()),
@@ -178,6 +180,9 @@ const ApplicationInput = z.object({
     modules: z.array(short).max(20).optional(),
     wishes: z.array(short).max(10).optional(),
     direction: short.optional(),
+    homeName: z.string().trim().max(40).optional(),
+    builderEdits: z.number().int().min(0).max(1000).optional(),
+    fit: short.optional(),
   }),
   plan: z
     .object({
@@ -193,6 +198,27 @@ const ApplicationInput = z.object({
 
 export type Application = z.infer<typeof ApplicationInput>;
 export { ApplicationInput };
+
+/**
+ * 0-100: how invested someone was. Rewards effort and self-expression (the "IKEA effect" applicant):
+ * a rich vision, answering the follow-up, their own idea, shaping the home, naming it, liking styles,
+ * and saying they can see their family here.
+ */
+export function engagementScore(app: Application): number {
+  const p = app.profile;
+  const vision = p.vision?.length ?? 0;
+  let score = vision >= 120 ? 15 : vision >= 40 ? 10 : vision > 0 ? 5 : 0;
+  if (p.visionFollowUp) score += 10;
+  if (p.childhood) score += 5;
+  if (p.idea) score += 15;
+  score += Math.min(20, (p.builderEdits ?? 0) * 4);
+  if (p.homeType === 'Built my own') score += 10;
+  if (p.homeName) score += 10;
+  if ((p.stylesLiked?.length ?? 0) > 0) score += 5;
+  if (p.fit === 'Yes, I can') score += 10;
+  else if (p.fit === 'Maybe, I need to think') score += 4;
+  return Math.min(100, score);
+}
 
 /** Flat CRM attributes, one column each in J-Mission's exports. */
 export function toCrmAttributes(app: Application): Record<string, string | number> {
@@ -227,7 +253,12 @@ export function toCrmAttributes(app: Application): Record<string, string | numbe
     aiga_home_m2: app.plan?.floor,
     aiga_storeys: app.plan?.storeys,
     aiga_estimate_usd: app.plan?.total,
-    aiga_applied_at: new Date().toISOString(),
+    aiga_stage: app.stage,
+    aiga_home_name: p.homeName,
+    aiga_builder_edits: p.builderEdits,
+    aiga_fit: p.fit,
+    aiga_engagement_score: engagementScore(app),
+    [app.stage === 'lead' ? 'aiga_saved_at' : 'aiga_applied_at']: new Date().toISOString(),
   };
   return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined && v !== '')) as Record<string, string | number>;
 }
@@ -235,7 +266,12 @@ export function toCrmAttributes(app: Application): Record<string, string | numbe
 export function memoryNote(app: Application): string {
   const p = app.profile;
   return [
-    `Applied to AIGA Village through the 3D onboarding with Asara.`,
+    app.stage === 'lead'
+      ? `Saved their home in AIGA Village (not applied yet) through the 3D onboarding with Asara.`
+      : `Applied to AIGA Village through the 3D onboarding with Asara.`,
+    p.homeName ? `They named their home "${p.homeName}".` : '',
+    p.fit ? `Could they see their family living here? ${p.fit}.` : '',
+    `Engagement score: ${engagementScore(app)}/100.`,
     p.belief ? `Who they are: ${p.belief}` : '',
     p.vision ? `Their ideal village: ${p.vision}` : '',
     p.visionFollowUp ? `More on that (${p.visionFollowUpQuestion ?? 'follow-up'}): ${p.visionFollowUp}` : '',
