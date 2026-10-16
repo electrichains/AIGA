@@ -41,10 +41,6 @@ body{background:var(--night);color:var(--text);font-family:var(--body);font-size
 .top{position:fixed;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top,0px) + 16px) 20px 0;display:flex;align-items:center;gap:20px;pointer-events:none;z-index:5}
 .brand{font-family:var(--display);font-size:20px;letter-spacing:.01em;white-space:nowrap}
 .brand span{color:var(--sun)}
-.steps{display:flex;gap:6px;flex-wrap:wrap;list-style:none;margin:0;padding:0}
-.steps li{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:5px 10px;border-radius:99px;border:1px solid transparent;transition:all .6s}
-.steps li.on{color:var(--night);background:var(--sun)}
-.steps li.done{color:var(--text);border-color:var(--line)}
 
 /* arrival */
 #arrival{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:0 24px calc(env(safe-area-inset-bottom,0px) + 9vh);z-index:6;background:linear-gradient(to top,rgba(12,23,20,.85),rgba(12,23,20,0) 55%);transition:opacity 1.2s}
@@ -169,8 +165,7 @@ input::placeholder{color:#6f786b}
 
 @media (max-width:760px){
   :root{--panel-w:100%}
-  .steps{display:none}
-  #guide{top:auto;left:0;right:0;bottom:0;width:auto;height:48%;border-radius:22px 22px 0 0;border-bottom:0;transform:translateY(105%);padding-bottom:env(safe-area-inset-bottom,0px)}
+    #guide{top:auto;left:0;right:0;bottom:0;width:auto;height:48%;border-radius:22px 22px 0 0;border-bottom:0;transform:translateY(105%);padding-bottom:env(safe-area-inset-bottom,0px)}
   .proto{top:calc(env(safe-area-inset-top,0px) + 48px);bottom:auto;left:20px;max-width:none}
   #arrival{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 40px)}
 }
@@ -230,9 +225,6 @@ input::placeholder{color:#6f786b}
 
 <header class="top">
   <div class="brand">AIGA <span>·</span> Village</div>
-  <ol class="steps" id="steps">
-    <li>Arrival</li><li>Your vision</li><li>The land</li><li>Your home</li><li>The village</li>
-  </ol>
 </header>
 
 <div class="proto">Prices are rough estimates · nothing is saved unless you apply</div>
@@ -240,8 +232,7 @@ input::placeholder{color:#6f786b}
 <section id="arrival">
   <div class="eyebrow">Nusa Dua, Bali · 5.8 hectares · a village of families</div>
   <h1>A few families. One land. <em>Designed together.</em></h1>
-  <p>You're about to walk the land with Asara, the AI guide who helps the families plan AIGA Village. She reads the land, listens to what you want, and sketches your place in seconds.</p>
-  <button class="btn" id="enter">Enter the land</button>
+  <button class="btn" id="enter">Walk the land</button>
 </section>
 
 <aside id="guide" aria-label="Conversation with Asara">
@@ -547,10 +538,10 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-setTimeout(()=>{ if(phase==='map') for(const id in mapLabels) showLabel(id,true); },RM?0:900);
+setTimeout(()=>{ if(phase==='map') for(const id in mapLabels) if(id!=='mp-pin') showLabel(id,true); },RM?0:900);
 Promise.all([tween(mc,'lr',Math.log(70),RM?0:7000),tween(mc,'tx',-3,RM?0:7000),tween(mc,'tz',7,RM?0:7000)]);
 async function dive(){
-  ['mp-bali','mp-Denpasar','mp-Ubud','mp-Uluwatu'].forEach(id=>showLabel(id,false));
+  ['mp-bali','mp-Denpasar','mp-Ubud','mp-Uluwatu'].forEach(id=>showLabel(id,false)); showLabel('mp-pin',true);
   await Promise.all([tween(mc,'tx',0,4200),tween(mc,'tz',0,4200),tween(mc,'lr',Math.log(2.6),4200),tween(mc,'pitch',1.42,4200)]);
   for(const id in mapLabels) showLabel(id,false); $('fade').classList.add('on'); await wait(750);
   phase='land'; $('fade').classList.remove('on');
@@ -559,8 +550,6 @@ async function dive(){
 /* ---------- conversation ---------- */
 const log=$('log'), actions=$('actions');
 const wait=ms=>new Promise(r=>setTimeout(r,RM?0:ms));
-function stepTo(n){ [...$('steps').children].forEach((li,i)=>{li.className=i<n?'done':i===n?'on':'';}); }
-stepTo(0);
 async function say(html,pause=500){
   const m=document.createElement('div'); m.className='msg ai'; log.appendChild(m);
   m.innerHTML='<span class="dots"><i></i><i></i><i></i></span>'; $('gorb').classList.add('thinking');
@@ -826,7 +815,7 @@ const short=(t,n)=>t.length>n?t.slice(0,n).replace(/\s+\S*$/,'')+'…':t;
 
 async function run(){
   $('arrival').classList.add('gone'); await dive(); tween(stars.material,'opacity',0,2500);
-  stepTo(1); idleSpin=0.00003;
+  idleSpin=0.00003;
   await camTo({r:430,pitch:.8,yaw:.55},RM?0:3600);
   $('guide').classList.add('open'); setTimeout(resize,1000);
   orb.material.opacity=1; orbTarget.set(CX,24,CZ);
@@ -872,8 +861,7 @@ async function run(){
   await say(`Now let me show you where all of this could happen.`,300);
 
   /* ---------- 2. The land, shaped by their answers ---------- */
-  stepTo(2);
-  camTo({tx:CX,tz:CZ,r:470,pitch:1.25,yaw:.2},3200); orbTarget.set(north[0],26,north[1]);
+    camTo({tx:CX,tz:CZ,r:470,pitch:1.25,yaw:.2},3200); orbTarget.set(north[0],26,north[1]);
   tween(wallU.uO,'value',1,2200); tween(bLine.material,'opacity',1,2000); tween(uni.uParcel,'value',1,2000); showLabel('lb-bound',true);
   tween(roadMat,'opacity',.8,1800); tween(builtMat,'opacity',.9,1800);
   await say(`Here's the land, in Nusa Dua: <b>${HA} hectares</b> inside a ${fmt(PARCEL.perimeter)}-metre boundary, with the main road along the south-west side.`,700);
@@ -943,7 +931,7 @@ async function run(){
   await say(`Thank you for being honest. A tribe works when people agree on the small things too, like what's cooked in a shared kitchen, so it helps to know this early.`,400);
 
   /* ---------- 3. Your home ---------- */
-  stepTo(3); showLabel('lb-vision',false);
+  showLabel('lb-vision',false);
   orbTarget.set(CX+180,60,CZ); camTo({tx:CX,tz:CZ,r:520,pitch:.35,yaw:-.25},3400);
   tween(arc.material,'opacity',.7,1500); tween(sun.material,'opacity',1,1500); sunRun=true; tween(uni.uWarm,'value',1,2000); showLabel('lb-sun',true);
   await say(`Now, your own corner, ${N}. Here the sun rises in the east and climbs almost straight overhead. What matters most for your home?`);
@@ -1089,7 +1077,7 @@ async function run(){
   await say(`Perfect. Please treat these numbers as rough. Final prices are set once the founding families agree on a shared vision: materials and style, what we build in the commons, shared water and energy, and more.`,700);
 
   /* ---------- 4. The village ---------- */
-  stepTo(4); showLabel('lb-you',false); orbTarget.set(CX,30,CZ);
+  showLabel('lb-you',false); orbTarget.set(CX,30,CZ);
   camTo({tx:CX,ty:0,tz:CZ,r:340,pitch:1.0,yaw:cam.yaw+.6},4000);
   homeSpots(profile.families-1,[fx,fz,34]).forEach(([x,z,a],j)=>setTimeout(()=>{ const c=CONFIGS[1+(j%3)], ms=[...c.row,...c.wing], p=priceOf(ms);
     const home=buildHome(x,z,a,ms,c.wing.length,0x8e9a86,.7,false); home.objs.forEach(o=>grow(o,1000));
