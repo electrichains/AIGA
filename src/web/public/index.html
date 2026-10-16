@@ -155,7 +155,6 @@ input::placeholder{color:#6f786b}
 #fade.on{opacity:1}
 .label.road{color:#d8c79e}.label.bound{color:var(--sun)}.label.sun{color:var(--sun)}.label.you{color:var(--night);background:var(--sun);border-color:var(--sun)}
 
-.proto{position:fixed;left:20px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);z-index:3;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.04em;max-width:calc(100% - var(--panel-w) - 60px)}
 
 /* dream card */
 #card{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(6,12,10,.72);backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .6s}
@@ -174,8 +173,7 @@ input::placeholder{color:#6f786b}
 @media (max-width:760px){
   :root{--panel-w:100%}
     #guide{top:auto;left:0;right:0;bottom:0;width:auto;height:48%;border-radius:22px 22px 0 0;border-bottom:0;transform:translateY(105%);padding-bottom:env(safe-area-inset-bottom,0px)}
-  .proto{top:calc(env(safe-area-inset-top,0px) + 48px);bottom:auto;left:20px;max-width:none}
-  #arrival{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 40px)}
+    #arrival{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 40px)}
 }
 /* loader: the real parcel outline traced in gold while the 3D land loads */
 #loader{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;background:radial-gradient(circle at 50% 42%,#14271f 0%,var(--night) 62%);transition:opacity .9s ease,visibility .9s}
@@ -235,7 +233,6 @@ input::placeholder{color:#6f786b}
   <div class="brand">AIGA <span>·</span> Village</div>
 </header>
 
-<div class="proto">Prices are rough estimates · nothing is saved unless you apply</div>
 
 <section id="arrival">
   <div class="eyebrow">Nusa Dua, Bali · 5.8 hectares · a village of families</div>
@@ -704,7 +701,7 @@ function updateProgress(){
   const pct=Math.round(done/14*100);
   $('prog-fill').style.width=pct+'%'; $('prog-txt').textContent=`Your village profile · ${pct}%`;
 }
-function askText(placeholder,{optional=false,cta='Continue',aiNote=false,max=300}={}){ return ask((box,done)=>{
+function askText(placeholder,{optional=false,cta='Continue',max=300}={}){ return ask((box,done)=>{
   const row=document.createElement('form'); row.className='row';
   const inp=document.createElement('input'); inp.type='text'; inp.id='q-'+Math.random().toString(36).slice(2,8); inp.placeholder=placeholder; inp.setAttribute('aria-label',placeholder); inp.maxLength=max;
   row.append(inp);
@@ -712,10 +709,6 @@ function askText(placeholder,{optional=false,cta='Continue',aiNote=false,max=300
   inp.addEventListener('input',()=>stopListening(false));
   row.append(button(cta)); box.append(row);
   if(optional){ const sk=button('Skip','skip'); sk.type='button'; sk.onclick=()=>{me('Skip');done('');}; row.append(sk); }
-  if(aiNote&&(aiOn||voiceOn||canListen())){ const p=document.createElement('p'); p.className='fine';
-    p.textContent="I'm an AI guide: what you write or say is processed by AI services so I can answer and speak with you. Nothing is saved unless you choose to apply.";
-    const off=button('Keep it offline','skip'); off.type='button'; off.onclick=()=>{ aiOn=false; offline=true; voiceOn=false; stopVoice(); endTalk(); $('voice-btn').hidden=true; row.querySelectorAll('.mic').forEach(m=>m.remove()); inp.placeholder=placeholder.replace(', or tap the mic and tell me','. There are no wrong answers'); p.textContent="Offline it is: I'll keep to my script, and nothing leaves your device."; inp.focus(); };
-    p.append(off); box.append(p); }
   if(!talkMode) setTimeout(()=>inp.focus(),50);
   row.addEventListener('submit',e=>{e.preventDefault(); const v=inp.value.trim(); if(!v&&!optional){inp.focus();return;} me(v||'Skip'); done(v);});
 }); }
@@ -950,12 +943,25 @@ async function run(){
   orb.material.opacity=1; orbTarget.set(CX,24,CZ);
 
   /* ---------- 1. Listen first: a short hook, then their vision, then who they are ---------- */
-  aiOn=aiAvailable;
   await say("Hello, I'm <b>Asara</b>.",200);
   await say("Most homes are bought. This village will be <b>imagined first</b>, by the families who will live in it.",500);
   await say("So before I show you anything, I want to listen.",400);
+  if(aiAvailable||canListen()){
+    const talk=canListen();
+    await say(talk?`We can simply talk, out loud, like two people, or you can type. I'm an AI, so what you share is processed by AI services, and nothing is saved unless you choose to apply.`
+                  :`I'm an AI, so what you write is processed by an AI service so I can answer you personally. Nothing is saved unless you choose to apply.`);
+    const pick=await ask((box,done)=>{ const row=document.createElement('div'); row.className='row';
+      (talk?[["Let's talk",'talk'],["I'll type",'type'],['Keep it offline','off']]:[['Sounds good','type'],['Keep it offline','off']]).forEach(([label,v])=>{
+        const c=button(label,'chip'); c.type='button';
+        c.onclick=()=>{ const mic=v==='talk'?getMic():null; if(mic) mic.catch(()=>{}); me(label); done({v,mic}); }; row.append(c); });
+      box.append(row); });
+    if(pick.v==='off'){ offline=true; voiceOn=false; stopVoice(); $('voice-btn').hidden=true; await say(`Of course. I'll keep to my script, and nothing leaves your device.`,300); }
+    else{ aiOn=aiAvailable;
+      if(pick.v==='talk'){ try{ await pick.mic; talkMode=true; await say(`Lovely. Just talk whenever you're ready, I'll know when you've finished.`,200); }
+        catch{ await say(`I can't reach your microphone, so let's write for now. You can tap the mic any time if you change your mind.`,300); } } }
+  }
   await say(`If you could create the perfect place for your family to wake up every morning, what would it look like? What would a day feel like there?`);
-  profile.vision=await askText(canListen()?'Dream freely, or tap the mic and tell me':'Dream freely. There are no wrong answers',{cta:'Share',aiNote:true,max:800});
+  profile.vision=await askText(talkMode?"Speak freely, I'm listening":'Dream freely. There are no wrong answers',{cta:'Share',max:800});
   const th=heard(profile.vision);
   await say(`“${esc(short(profile.vision,140))}”`,300);
   const aiV=await askAsara('vision',profile.vision);
