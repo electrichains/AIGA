@@ -120,6 +120,7 @@ body{background:var(--night);color:var(--text);font-family:var(--body);font-size
 .c-style b{display:block;color:var(--text);font-family:var(--display);font-weight:400;font-size:17px}
 .card .vision{font-size:14px;color:var(--text);font-style:italic;line-height:1.5;margin:0 0 10px}
 .hint{font-size:13px;color:#e3a68f;min-height:0}
+.fine{font-size:12.5px;line-height:1.45;color:var(--muted);margin:8px 2px 0}.fine .skip{font-size:12.5px;padding:0 0 0 4px}
 .apply-form{display:flex;flex-direction:column;gap:10px}
 .apply-form input[type=email],.apply-form input[type=tel]{width:100%;font:15px var(--body);color:var(--text);background:var(--night);border:1px solid var(--line);border-radius:99px;padding:11px 16px}
 .apply-form label.check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--muted);line-height:1.45}
@@ -230,7 +231,7 @@ input::placeholder{color:#6f786b}
 <header class="top">
   <div class="brand">AIGA <span>·</span> Village</div>
   <ol class="steps" id="steps">
-    <li>Arrival</li><li>Meet Asara</li><li>The land</li><li>Your home</li><li>The village</li>
+    <li>Arrival</li><li>Your vision</li><li>The land</li><li>Your home</li><li>The village</li>
   </ol>
 </header>
 
@@ -584,7 +585,7 @@ async function askAsara(moment,text,extra={}){
   thinking=true; $('gorb').classList.add('thinking');
   try{
     const r=await fetch('/api/asara',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({moment,text:text||'',context:{name,kids:profile.kids,ages:profile.ages,belief:profile.belief,vision:profile.vision,...extra}}),
+      body:JSON.stringify({moment,text:text||'',context:{name:name==='friend'?undefined:name,kids:profile.kids,ages:profile.ages,belief:profile.belief,vision:profile.vision,...extra}}),
       signal:AbortSignal.timeout?AbortSignal.timeout(10000):undefined});
     if(!r.ok) return null; const d=await r.json(); return d&&d.reply?d:null;
   }catch{ return null; }
@@ -598,11 +599,15 @@ function updateProgress(){
   const pct=Math.round(done/14*100);
   $('prog-fill').style.width=pct+'%'; $('prog-txt').textContent=`Your village profile · ${pct}%`;
 }
-function askText(placeholder,{optional=false,cta='Continue'}={}){ return ask((box,done)=>{
+function askText(placeholder,{optional=false,cta='Continue',aiNote=false}={}){ return ask((box,done)=>{
   const row=document.createElement('form'); row.className='row';
   const inp=document.createElement('input'); inp.type='text'; inp.id='q-'+Math.random().toString(36).slice(2,8); inp.placeholder=placeholder; inp.setAttribute('aria-label',placeholder); inp.maxLength=160;
   row.append(inp,button(cta)); box.append(row);
   if(optional){ const sk=button('Skip','skip'); sk.type='button'; sk.onclick=()=>{me('Skip');done('');}; row.append(sk); }
+  if(aiNote&&aiOn){ const p=document.createElement('p'); p.className='fine';
+    p.textContent="I'm an AI guide: what you write is processed by an AI service so I can answer you personally. Nothing is saved unless you choose to apply.";
+    const off=button('Keep it offline','skip'); off.type='button'; off.onclick=()=>{ aiOn=false; p.textContent="Offline it is: I'll keep to my script, and nothing leaves your device."; inp.focus(); };
+    p.append(off); box.append(p); }
   setTimeout(()=>inp.focus(),50);
   row.addEventListener('submit',e=>{e.preventDefault(); const v=inp.value.trim(); if(!v&&!optional){inp.focus();return;} me(v||'Skip'); done(v);});
 }); }
@@ -825,50 +830,45 @@ async function run(){
   $('guide').classList.add('open'); setTimeout(resize,1000);
   orb.material.opacity=1; orbTarget.set(CX,24,CZ);
 
-  /* ---------- 1. Meet: the blank page, then the person ---------- */
-  await say("Hello, I'm <b>Asara</b>, the guide for <b>AIGA Village</b>.");
-  await say("This village doesn't exist yet. It's a <b>blank page</b>, and today you hold the pen. Everything you tell me, I'll draw on the land in front of you.",700);
-  await say("Before we start: I'm an AI guide. To personalise our conversation, what you write to me is processed by an AI service. Nothing is saved unless you choose to apply at the end.");
-  const c0=await askChoice(['Sounds good','Keep it simple, no AI']);
-  aiOn=c0==='Sounds good'&&aiAvailable;
-  await say(c0==='Sounds good'?"Thank you. What should I call you?":"Of course. I'll keep to my script, and nothing leaves your device. What should I call you?");
-  name=await askText('Your first name',{cta:'Continue'});
-  name=name.slice(0,30)||'friend';
-  const N=esc(name);
-  await say(`Welcome, <b>${N}</b>. A village starts with its people, so let's start with you. In one sentence: who are you, and what do you believe in?`);
-  profile.belief=await askText('e.g. A teacher who believes kids should grow up barefoot');
-  const aiB=await askAsara('belief',profile.belief);
-  await say(aiB?esc(aiB.reply):`Thank you. That tells me more than any form could.`,300);
-  await say(`Just for fun: is there a line from a film that feels like you?`);
-  profile.film=await askText('A quote, or just the film',{optional:true});
-  if(profile.film){ const aiF=await askAsara('film',profile.film); await say(aiF?esc(aiF.reply):`Good choice.`,200); }
-  await say(`And who would come with you? Do you have children?`);
-  profile.kids=await askChoice(['No children','1','2','3','4 or more']);
-  if(profile.kids!=='No children'){
-    await say(`How old are they?`);
-    profile.ages=await askText('e.g. 4 and 7');
-    await say(`I'll keep them in mind as we go: safe paths, shade, places to roam. Families with children are a big part of this vision.`,400);
-  } else await say(`Got it.`,200);
-
-  const kids=profile.kids!=='No children';
-  await say(kids?`Before I show you anything, I'd love to hear your vision. Imagine the ideal village to raise your children. What does it look like? What does a day feel like there?`
-               :`Before I show you anything, I'd love to hear your vision. Imagine your ideal village. What does it look like? What does a day feel like there?`);
-  profile.vision=await askText('Take your time. There are no wrong answers',{cta:'Share'});
+  /* ---------- 1. Listen first: a short hook, then their vision, then who they are ---------- */
+  aiOn=aiAvailable;
+  await say("Hello, I'm <b>Asara</b>.",200);
+  await say("Most homes are bought. This village will be <b>imagined first</b>, by the families who will live in it.",500);
+  await say("So before I show you anything, I want to listen.",400);
+  await say(`If you could create the perfect place for your family to wake up every morning, what would it look like? What would a day feel like there?`);
+  profile.vision=await askText('Dream freely. There are no wrong answers',{cta:'Share',aiNote:true});
   const th=heard(profile.vision);
   await say(`“${esc(short(profile.vision,140))}”`,300);
   const aiV=await askAsara('vision',profile.vision);
-  await say(aiV?esc(aiV.reply):(th.length?`I hear ${listJoin(th)}. That's exactly the kind of village this blank page is for.`:`Thank you for sharing that. I've kept your words exactly as you wrote them.`),500);
+  await say(aiV?esc(aiV.reply):(th.length?`I hear ${listJoin(th)}. Hold on to that: this whole village starts from visions like yours.`:`Thank you. I've kept your words exactly as you wrote them. This whole village starts from visions like yours.`),500);
   if(aiV&&aiV.followUp){
     profile.visionFollowUpQuestion=aiV.followUp;
     await say(esc(aiV.followUp));
     profile.visionFollowUp=await askText('Your answer',{optional:true});
     if(profile.visionFollowUp){ const aiA=await askAsara('vision_followup',profile.visionFollowUp,{followUpQuestion:aiV.followUp}); await say(aiA?esc(aiA.reply):`Thank you. I'll remember that.`,300); }
   }
-  await say(kids?`And one thing from your own childhood that you'd want your children to have too?`:`And what's missing from the place you live now?`);
-  profile.wish=await askText(kids?'e.g. Climbing trees until sunset':'e.g. Neighbours who actually know my name',{optional:true});
+  await say(`And what's missing from the life your family lives today?`);
+  profile.wish=await askText('e.g. Neighbours who feel like family',{optional:true});
   if(profile.wish){ const th2=heard(profile.wish).filter(x=>!th.includes(x)); const aiC=await askAsara('childhood',profile.wish);
-    await say(aiC?esc(aiC.reply):(th2.length?`${th2[0][0].toUpperCase()+th2[0].slice(1)}. I'll remember that.`:`I'll remember that. It's often the small things that make a place home.`),400); }
-  await say(`Let me show you where all of this could happen.`,300);
+    await say(aiC?esc(aiC.reply):(th2.length?`${th2[0][0].toUpperCase()+th2[0].slice(1)}. I'll remember that. It's exactly what a village like this is for.`:`I'll remember that. It's often the small things that make a place home.`),400); }
+
+  await say(`I've been listening without even asking your name. What should I call you?`);
+  name=await askText('Your first name',{cta:'Continue'});
+  name=name.slice(0,30)||'friend';
+  const N=esc(name);
+  await say(`${N}, here's what makes this village different: it isn't sold to whoever pays first. It grows around families who share a vision, and they don't just live in it. They <b>create</b> it.`,700);
+  await say(`So the heart of it, in one sentence: what do you believe in?`);
+  profile.belief=await askText('e.g. Kids should grow up barefoot, close to nature');
+  const aiB=await askAsara('belief',profile.belief);
+  await say(aiB?esc(aiB.reply):`That's the kind of sentence a village is built on. It's how families here find their tribe.`,300);
+  await say(`And who's coming with you? Do you have children?`);
+  profile.kids=await askChoice(['No children','1','2','3','4 or more']);
+  if(profile.kids!=='No children'){
+    await say(`How old are they?`);
+    profile.ages=await askText('e.g. 4 and 7');
+    await say(`I'll keep them in mind at every step: shade, safe paths, places to roam.`,400);
+  } else await say(`Got it.`,200);
+  await say(`Now let me show you where all of this could happen.`,300);
 
   /* ---------- 2. The land, shaped by their answers ---------- */
   stepTo(2);
@@ -884,7 +884,7 @@ async function run(){
   showLabel('lb-zone',true); showLabel('lb-green',true);
   camTo({tx:CX,tz:CZ,r:380,pitch:1.15,yaw:.2},2500);
   await say(`The village would lease about a quarter of it, around <b>${fmt(VILLAGE_AREA)} m²</b> in the middle. Green-zone rules allow building on 19% of the whole parcel, about ${fmt(VILLAGE_BUILDABLE)} m², and all of that can be used inside the village. The rest stays green.`,800);
-  await say(`We first imagined 12 families, but that number is still open, and your view counts. How many families do you see in your ideal village?`);
+  await say(`We first imagined 12 families, but that number is still open, and your view counts. How big is your tribe? How many families do you see in your ideal village?`);
   const fam=await askChoice(['8 to 12, intimate','About 20','30 or more','Not sure yet']);
   profile.familiesAnswer=fam; profile.families={'8 to 12, intimate':10,'About 20':20,'30 or more':30}[fam]||16;
   const dots=homeSpots(profile.families).map(([x,z])=>{ const d=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('#fff8e6','rgba(233,185,106,.9)'),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending})); d.position.set(x,H(x,z)+4,z); d.scale.set(.1,.1,1); scene.add(d); return d; });
@@ -925,6 +925,9 @@ async function run(){
     labels[el.id]=new THREE.Vector3(x,H(x,z)+7,z); setTimeout(()=>showLabel(el.id,true),RM?0:500+n*350);
   });
   await say(profile.spaces.length?`There ${profile.spaces.length===1?'it is':'they are'}. See how fast a blank page fills up?`:`That's fine. The families will dream these up together.`,700);
+  await say(`While it takes shape, just for fun: is there a line from a film that feels like your family?`);
+  profile.film=await askText('A quote, or just the film',{optional:true});
+  if(profile.film){ const aiF=await askAsara('film',profile.film); await say(aiF?esc(aiF.reply):`Good choice. I'd watch that one together.`,200); }
 
   await say(`Around the commons, there's room for food. How important is <b>food quality</b> to you?`);
   profile.food=await askScale('Not much','Everything',7);
@@ -936,7 +939,7 @@ async function run(){
   profile.meat=await askChoice(['Yes','Sometimes','No, plant-based']);
   await say(`And would you mind if your neighbours do?`);
   profile.meatOk=await askChoice(['Not at all','A little','Yes, I would']);
-  await say(`Thank you for being honest. Shared kitchens only work when people agree on the rules, so it helps to know this early.`,400);
+  await say(`Thank you for being honest. A tribe works when people agree on the small things too, like what's cooked in a shared kitchen, so it helps to know this early.`,400);
 
   /* ---------- 3. Your home ---------- */
   stepTo(3); showLabel('lb-vision',false);
@@ -1092,7 +1095,7 @@ async function run(){
   await say(`Now picture the ${profile.families-1} other families you imagined, each adding their own answers to this page. All the homes and shared buildings fit within the ${fmt(VILLAGE_BUILDABLE)} m² the law allows, and the green heart stays open.`,900);
   await say(`When two wishes collide, I don't pick a winner. I show the families the options and the trade-offs, and they decide together.`,600);
   showLabel('lb-vision',true);
-  await say(`You told me: “${esc(short(profile.vision,110))}” The co-design is where that becomes real, with families chosen because they share it.`,800);
+  await say(`You told me: “${esc(short(profile.vision,110))}” The co-design is where that becomes real, with a tribe of families chosen because they share it.`,800);
   const aiX=await askAsara('closing','');
   if(aiX) await say(esc(aiX.reply),600);
   await say(`One honest question, ${N}: could you see your family living here?`);
