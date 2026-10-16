@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { rateLimit } from './guards.js';
-import { voiceEnabled } from './voice.js';
+import { voiceEnabled, agentEnabled } from './voice.js';
 
 /*
  * The AIGA Village onboarding API.
@@ -186,6 +186,9 @@ const ApplicationInput = z.object({
     homeName: z.string().trim().max(40).optional(),
     builderEdits: z.number().int().min(0).max(1000).optional(),
     fit: short.optional(),
+    /** The live voice conversation with the Asara agent, as text, and its ElevenLabs id. */
+    transcript: z.string().trim().max(12000).optional(),
+    agentConversationId: z.string().trim().max(80).optional(),
   }),
   plan: z
     .object({
@@ -261,6 +264,7 @@ export function toCrmAttributes(app: Application): Record<string, string | numbe
     aiga_builder_edits: p.builderEdits,
     aiga_fit: p.fit,
     aiga_engagement_score: engagementScore(app),
+    aiga_agent_conversation_id: p.agentConversationId,
     [app.stage === 'lead' ? 'aiga_saved_at' : 'aiga_applied_at']: new Date().toISOString(),
   };
   return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined && v !== '')) as Record<string, string | number>;
@@ -285,6 +289,7 @@ export function memoryNote(app: Application): string {
     p.families ? `Imagines a village of about ${p.families} families.` : '',
     p.modules?.length ? `Home sketch (${p.homeType ?? 'custom'}): ${p.modules.join(', ')}.` : '',
     app.plan ? `Budget about $${Math.round(app.plan.budget).toLocaleString('en-US')}; sketch: ${app.plan.floor} m² home on ${app.plan.land} m² of land.` : '',
+    p.transcript ? `\nTheir conversation with Asara (voice):\n${p.transcript}` : '',
   ].filter(Boolean).join('\n');
 }
 
@@ -310,6 +315,7 @@ export function onboardingRouter(): Router {
       asara: Boolean(asaraProvider()),
       applications: Boolean(process.env.JMISSION_URL && process.env.JMISSION_API_KEY && process.env.JMISSION_ENTRY_POINT),
       voice: voiceEnabled(),
+      agent: agentEnabled(),
     });
   });
 

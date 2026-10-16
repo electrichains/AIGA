@@ -14,10 +14,12 @@ describe('Asara voice (ElevenLabs)', () => {
   before(async () => {
     process.env.ELEVENLABS_API_KEY = 'test-key';
     process.env.ELEVENLABS_VOICE_ID = 'voice123';
+    process.env.ELEVENLABS_AGENT_ID = 'agent_abc';
     globalThis.fetch = (async (input: any, init: any = {}) => {
       const url = String(input);
       if (!url.startsWith('https://api.elevenlabs.io')) return realFetch(input, init);
       calls.push({ url, init });
+      if (url.includes('/convai/conversation/get-signed-url')) return Response.json({ signed_url: 'wss://api.elevenlabs.io/v1/convai/conversation?agent_id=agent_abc&conversation_signature=sig' });
       if (url.includes('/text-to-speech/')) return new Response(new Uint8Array([1, 2, 3, 4]), { headers: { 'Content-Type': 'audio/mpeg' } });
       return Response.json({ text: 'A big table (laughs) under the trees' });
     }) as typeof fetch;
@@ -33,6 +35,7 @@ describe('Asara voice (ElevenLabs)', () => {
     server.close();
     delete process.env.ELEVENLABS_API_KEY;
     delete process.env.ELEVENLABS_VOICE_ID;
+    delete process.env.ELEVENLABS_AGENT_ID;
   });
 
   test('chat HTML becomes plain speakable text', () => {
@@ -67,6 +70,17 @@ describe('Asara voice (ElevenLabs)', () => {
     const form = call.init.body as FormData;
     assert.equal(form.get('model_id'), 'scribe_v1');
     assert.equal((form.get('file') as File).name, 'answer.webm');
+  });
+
+  test('a live call gets a signed URL for the private agent, never the key', async () => {
+    const r = await realFetch(`${base}/api/asara/agent-session`, { method: 'POST' });
+    assert.equal(r.status, 200);
+    const body = await r.json();
+    assert.match(body.signedUrl, /^wss:\/\/api\.elevenlabs\.io\/.*agent_id=agent_abc/);
+    assert.ok(!JSON.stringify(body).includes('test-key'));
+    const call = calls.find((c) => c.url.includes('get-signed-url'))!;
+    assert.match(call.url, /agent_id=agent_abc/);
+    assert.equal((call.init.headers as Record<string, string>)['xi-api-key'], 'test-key');
   });
 
   test('tiny recordings are refused before reaching ElevenLabs', async () => {

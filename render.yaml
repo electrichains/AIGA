@@ -33,6 +33,8 @@ services:
         sync: false
       - key: ELEVENLABS_VOICE_ID
         sync: false
+      - key: ELEVENLABS_AGENT_ID
+        sync: false
       # Applications go to J-Mission through an "api" entry point of the AIGA Village business
       - key: JMISSION_URL
         value: https://j-mission.onrender.com

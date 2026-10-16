@@ -680,7 +680,7 @@ const fmt=n=>n.toLocaleString('en-US');
 
 let name='friend', wishes=new Set(), choice=0;
 let aiOn=false, aiAvailable=false, applyOpen=false;
-fetch('/api/onboarding/status').then(r=>r.json()).then(st=>{ aiAvailable=!!st.asara; applyOpen=!!st.applications; voiceAvailable=!!st.voice; }).catch(()=>{});
+fetch('/api/onboarding/status').then(r=>r.json()).then(st=>{ aiAvailable=!!st.asara; applyOpen=!!st.applications; voiceAvailable=!!st.voice; agentAvailable=!!st.agent; }).catch(()=>{});
 const applicantId=(crypto.randomUUID?crypto.randomUUID():'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 async function askAsara(moment,text,extra={}){
   if(!aiOn) return null;
@@ -934,6 +934,152 @@ const heard=t=>{ const l=t.toLowerCase(); return THEMES.filter(([re])=>re.test(l
 const listJoin=a=>a.length<2?a.join(''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];
 const short=(t,n)=>t.length>n?t.slice(0,n).replace(/\s+\S*$/,'')+'…':t;
 
+/* The personal part of the walk as reusable moments on the land. The scripted flow and the live Asara agent
+   (through its client tools) both use these, so the village takes shape the same way whichever one is talking. */
+const stage={land:false,zone:null,dots:[],commons:false,hubScale:1,spaceObjs:[],spaceLabels:[],forest:[]};
+function showLand(){
+  if(stage.land) return; stage.land=true;
+  camTo({tx:CX,tz:CZ,r:470,pitch:1.25,yaw:.2},3200); orbTarget.set(north[0],26,north[1]);
+  tween(wallU.uO,'value',1,2200); tween(bLine.material,'opacity',1,2000); tween(uni.uParcel,'value',1,2000); showLabel('lb-bound',true);
+  tween(roadMat,'opacity',.8,1800); tween(builtMat,'opacity',.9,1800);
+}
+function showVillageZone(){
+  showLand(); if(stage.zone) return;
+  showLabel('lb-bound',false); tween(wallU.uO,'value',.25,1500);
+  const zone=new THREE.Mesh(new THREE.RingGeometry(VZ-.7,VZ,160),new THREE.MeshBasicMaterial({color:0xe9b96a,transparent:true,opacity:0,side:THREE.DoubleSide}));
+  zone.rotation.x=-Math.PI/2; zone.position.set(CX,1.4,CZ); scene.add(zone); tween(zone.material,'opacity',.8,1800); stage.zone=zone;
+  let ga=0; for(let k=0;k<36;k++){ const a=k*Math.PI/18; if(reach(a)>reach(ga)) ga=a; }
+  labels['lb-zone']=new THREE.Vector3(CX,4,CZ-VZ); labels['lb-green']=new THREE.Vector3(CX+(VZ+40)*Math.cos(ga),3,CZ+(VZ+40)*Math.sin(ga));
+  showLabel('lb-zone',true); showLabel('lb-green',true);
+  camTo({tx:CX,tz:CZ,r:380,pitch:1.15,yaw:.2},2500);
+}
+function showFamilies(n){
+  showVillageZone(); removeAll(stage.dots);
+  stage.dots=homeSpots(n).map(([x,z])=>{ const d=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('#fff8e6','rgba(233,185,106,.9)'),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending})); d.position.set(x,H(x,z)+4,z); d.scale.set(.1,.1,1); scene.add(d); return d; });
+  stage.dots.forEach((d,j)=>setTimeout(()=>{ tween(d.scale,'x',9,600); tween(d.scale,'y',9,600); },RM?0:j*60));
+}
+function hideFamilies(){ showLabel('lb-zone',false); showLabel('lb-green',false); removeAll(stage.dots); stage.dots=[]; if(stage.zone) tween(stage.zone.material,'opacity',.35,1500); }
+function showCommons(){
+  if(stage.commons) return; stage.commons=true; hideFamilies();
+  orbTarget.set(CX,24,CZ); camTo({tx:CX,tz:CZ,r:260,pitch:1.0,yaw:.4},3200);
+  if(profile.vision){ $('lb-vision').textContent=`“${short(profile.vision,90)}”`; labels['lb-vision']=new THREE.Vector3(CX,22,CZ); showLabel('lb-vision',true); }
+  tween(hubRing.material,'opacity',.95,2000); tween(uni.uHub,'value',1,2000); showLabel('lb-hub',true);
+}
+function sizeCommons(privacy){
+  showCommons(); profile.privacy=privacy; profile.privacyAnswered=true;
+  stage.hubScale=1.3-(privacy-1)/9*.55;
+  tween(hubRing.scale,'x',stage.hubScale,1500); tween(hubRing.scale,'y',stage.hubScale,1500); tween(uni.uHubR,'value',HUB_R*stage.hubScale,1500);
+  wishes.delete('commons'); wishes.delete('quiet'); if(privacy<=4) wishes.add('commons'); else if(privacy>=7) wishes.add('quiet');
+}
+function buildSpaces(keys){
+  showCommons(); showLabel('lb-hub',false);
+  removeAll(stage.spaceObjs); stage.spaceLabels.forEach(el=>{ showLabel(el.id,false); delete labels[el.id]; el.remove(); }); stage.spaceObjs=[]; stage.spaceLabels=[];
+  const ringR=HUB_R*stage.hubScale*.62;
+  keys.slice(0,8).forEach((k,n,arr)=>{
+    const others=arr.filter(x=>x!=='table'), idx=others.indexOf(k), a=-Math.PI/2+idx*2*Math.PI/Math.max(1,others.length);
+    const x=CX+(k==='table'?0:ringR*Math.cos(a)), z=CZ+(k==='table'?0:ringR*Math.sin(a));
+    const g=new THREE.Group(); let m;
+    if(k==='table'){ m=new THREE.Mesh(new THREE.BoxGeometry(12,1,2.4),new THREE.MeshLambertMaterial({color:0xc9894f})); m.position.y=1.2; g.add(m); }
+    else if(k==='pool'){ m=new THREE.Mesh(new THREE.BoxGeometry(7,.4,3.6),new THREE.MeshBasicMaterial({color:0x7cc6de})); m.position.y=.3; g.add(m); }
+    else { const body=new THREE.Mesh(new THREE.BoxGeometry(4.6,2.6,4.6),new THREE.MeshLambertMaterial({color:0xe8dcc0})); body.position.y=1.3;
+      const roof=new THREE.Mesh(new THREE.ConeGeometry(4.3,2.2,4),new THREE.MeshLambertMaterial({color:0xe9b96a})); roof.position.y=3.7; roof.rotation.y=Math.PI/4; g.add(body,roof); }
+    g.position.set(x,H(x,z),z); g.scale.setScalar(.001); scene.add(g); stage.spaceObjs.push(g);
+    setTimeout(()=>grow(g,1100),RM?0:200+n*350);
+    const el=document.createElement('div'); el.className='label space'; el.id='sp-'+k; el.textContent=SPACE_SHORT[k]; document.body.append(el); stage.spaceLabels.push(el);
+    labels[el.id]=new THREE.Vector3(x,H(x,z)+7,z); setTimeout(()=>showLabel(el.id,true),RM?0:500+n*350);
+  });
+}
+function plantFood(level){
+  showCommons(); removeAll(stage.forest); stage.forest=[];
+  const hr=HUB_R*stage.hubScale, nTrees=Math.round(level*3.2);
+  for(let t=0;t<nTrees;t++){ const a=Math.random()*Math.PI*2, rr=hr+1+Math.random()*Math.max(2,33-hr), x=CX+rr*Math.cos(a), z=CZ+rr*Math.sin(a); stage.forest.push(tree(x,z,1.2+Math.random()*.7)); }
+  stage.forest.forEach((t,j)=>setTimeout(()=>grow(t,800),RM?0:j*45));
+}
+const KIDS_OPTS=['No children','1','2','3','4 or more'], MEAT_OPTS=['Yes','Sometimes','No, plant-based'], MEATOK_OPTS=['Not at all','A little','Yes, I would'];
+const clamp10=v=>{ const n=Math.round(Number(String(v).match(/\d+(\.\d+)?/)?.[0])); return n>=1&&n<=10?n:null; };
+function spaceKeys(text){
+  const keys=[]; const parts=String(text).split(/,|;|\band\b/i).map(t=>t.trim()).filter(Boolean);
+  for(const part of parts){ let best=null, top=0; for(const [k,v] of Object.entries(SPACES)){ if(k==='custom') continue; const sc=matchScore(part,v); if(sc>top){ top=sc; best=k; } }
+    if(best&&!keys.includes(best)) keys.push(best); }
+  return keys;
+}
+/* What the agent hears back from each tool is short and factual, so it can speak naturally about what just appeared. */
+function applyAnswer(field,value){
+  const v=String(value??'').trim().slice(0,1500); if(!v) return 'nothing to save';
+  switch(field){
+    case 'name': name=v.split(/\s+/)[0].slice(0,30); break;
+    case 'vision': profile.vision=v.slice(0,800); if(stage.commons){ $('lb-vision').textContent=`“${short(profile.vision,90)}”`; } break;
+    case 'vision_detail': profile.visionFollowUpQuestion='Asara asked in conversation'; profile.visionFollowUp=v; break;
+    case 'missing': profile.wish=v; break;
+    case 'belief': profile.belief=v; break;
+    case 'children': { const n=words(v).map(Number).find(n=>n>=0); profile.kids=/\b(no|none|zero|0)\b/i.test(v)&&!n?'No children':n>=4?'4 or more':n>=1?String(n):(bestOption(v,KIDS_OPTS)||v.slice(0,40)); break; }
+    case 'children_ages': profile.ages=v.slice(0,120); break;
+    case 'film': profile.film=v.slice(0,300); break;
+    case 'idea': profile.idea=v.slice(0,300); SPACES.custom=profile.idea; SPACE_SHORT.custom=short(profile.idea,24); if(!profile.spaces.includes('custom')) profile.spaces.push('custom'); if(profile.spacesAnswered) buildSpaces(profile.spaces); break;
+    case 'meat': profile.meat=bestOption(v,MEAT_OPTS)||v.slice(0,60); break;
+    case 'meat_ok': profile.meatOk=bestOption(v,MEATOK_OPTS)||v.slice(0,60); break;
+    default: return `unknown field ${field}`;
+  }
+  updateProgress(); return 'saved';
+}
+/* A live conversation with the Asara agent on ElevenLabs. Our server hands out a short-lived signed URL, so the
+   API key never reaches the browser. Asara drives the land through client tools, and the call ends when she has
+   heard enough (finish_conversation), when the person ends it, or after 12 minutes. Resolves true if a call took place. */
+let agentAvailable=false;
+async function agentConversation(){
+  let Conversation, signedUrl;
+  try{ ({Conversation}=await import('/vendor/elevenlabs-client.js')); }catch{ return false; }
+  try{ const r=await fetch('/api/asara/agent-session',{method:'POST'}); if(!r.ok) return false; signedUrl=(await r.json()).signedUrl; }catch{ return false; }
+  if(!signedUrl) return false;
+  stopVoice(); stopListening(false);
+  return new Promise(resolve=>{
+    let conv=null, done=false, ending=false, connected=false;
+    const lines=[];
+    const status=t=>{ st.textContent=t; };
+    actions.innerHTML='';
+    const row=document.createElement('form'); row.className='row';
+    const inp=document.createElement('input'); inp.type='text'; inp.id='agent-input'; inp.placeholder='Talk, or type to Asara'; inp.setAttribute('aria-label','Type to Asara'); inp.maxLength=500;
+    const mute=document.createElement('button'); mute.type='button'; mute.className='mic rec'; mute.innerHTML=MIC_SVG; mute.setAttribute('aria-label','Mute my microphone'); mute.title='Mute my microphone';
+    let muted=false;
+    mute.onclick=()=>{ muted=!muted; try{ conv&&conv.setMicMuted(muted); }catch{} mute.classList.toggle('rec',!muted); mute.setAttribute('aria-label',muted?'Unmute my microphone':'Mute my microphone'); status(muted?'Your microphone is off. Type, or tap the mic to talk again.':'Asara is listening.'); };
+    const send=button('Send'); row.append(inp,mute,send);
+    const st=document.createElement('div'); st.className='hint talk'; st.setAttribute('role','status');
+    const end=button('Finish the conversation','skip'); end.type='button'; end.onclick=()=>finish();
+    actions.append(row,st,end); status('Connecting to Asara…');
+    inp.addEventListener('input',()=>{ try{ conv&&conv.sendUserActivity(); }catch{} });
+    row.addEventListener('submit',e=>{ e.preventDefault(); const v=inp.value.trim(); if(!v||!conv) return; inp.value=''; try{ conv.sendUserMessage(v); }catch{} });
+    const cap=setTimeout(()=>finish(),12*60*1000);
+    async function finish(){
+      if(done) return; done=true; clearTimeout(cap);
+      try{ conv&&await conv.endSession(); }catch{}
+      $('gorb').classList.remove('speaking'); actions.innerHTML='';
+      if(lines.length) profile.transcript=lines.join('\n').slice(-12000);
+      resolve(connected);
+    }
+    const addLine=(who,text)=>{ const t=String(text||'').trim(); if(!t) return; lines.push(`${who==='ai'?'Asara':'Them'}: ${t}`);
+      const m=document.createElement('div'); m.className='msg '+(who==='ai'?'ai':'me'); m.textContent=t; log.appendChild(m); log.scrollTop=log.scrollHeight; };
+    const clientTools={
+      save_answer:({field,value})=>applyAnswer(field,value),
+      show_land:()=>{ showLand(); setTimeout(showVillageZone,2600); return `The land is on screen: ${HA} hectares in Nusa Dua with a ${fmt(PARCEL.perimeter)}-metre boundary and the main road on the south-west side. The village zone in the middle (about ${fmt(VILLAGE_AREA)} m²) is highlighted, and the green land around it stays green.`; },
+      show_families:({count})=>{ const n=Math.max(4,Math.min(60,Math.round(Number(count)||16))); profile.families=n; profile.familiesAnswer=`About ${n} (said in conversation)`; showFamilies(n); updateProgress(); return `Showing about ${n} homes as glowing points inside the village zone.`; },
+      show_commons:()=>{ showCommons(); return `The green commons at the heart of the village is on screen${profile.vision?', with their vision written over it':''}.`; },
+      size_commons:({privacy})=>{ const n=clamp10(privacy)||5; sizeCommons(n); updateProgress(); return n<=4?'The commons grew bigger.':n>=7?'The commons is smaller and more intimate, leaving more private space.':'The commons stays a balanced size.'; },
+      build_spaces:({spaces})=>{ const keys=spaceKeys(spaces); if(profile.idea&&!keys.includes('custom')) keys.push('custom'); profile.spaces=keys; profile.spacesAnswered=true; buildSpaces(keys); updateProgress();
+        return keys.length?`Built in the commons: ${keys.map(k=>SPACES[k]).join(', ')}.`:'Nothing matched the list; save their own idea with save_answer field "idea" so it appears.'; },
+      plant_food_forest:({importance})=>{ const n=clamp10(importance)||6; profile.food=n; plantFood(n); updateProgress(); return n>=8?'A food forest is growing around the commons.':n<=4?'A few fruit trees appeared around the commons.':'A good garden is growing around the commons.'; },
+      finish_conversation:()=>{ ending=true; setTimeout(()=>finish(),9000); return 'ok, say one short warm closing sentence and stop'; },
+    };
+    Conversation.startSession({
+      signedUrl, clientTools,
+      dynamicVariables:{ village_hectares:HA, village_area_m2:VILLAGE_AREA, buildable_m2:VILLAGE_BUILDABLE },
+      onConnect:({conversationId})=>{ connected=true; profile.agentConversationId=conversationId; status('Asara is listening.'); },
+      onMessage:({message,source,role})=>addLine((role||source)==='user'?'me':'ai',message),
+      onModeChange:({mode})=>{ $('gorb').classList.toggle('speaking',mode==='speaking'); if(!muted) status(mode==='speaking'?'Asara is speaking. You can interrupt her any time.':'Asara is listening.'); if(ending&&mode==='listening') setTimeout(()=>finish(),600); },
+      onDisconnect:()=>finish(),
+      onError:()=>{},
+    }).then(c=>{ conv=c; if(done) c.endSession().catch(()=>{}); }).catch(()=>finish());
+  });
+}
 async function run(){
   unlockVoice();
   $('arrival').classList.add('gone'); await dive(); tween(stars.material,'opacity',0,2500);
@@ -946,8 +1092,10 @@ async function run(){
   await say("Hello, I'm <b>Asara</b>.",200);
   await say("Most homes are bought. This village will be <b>imagined first</b>, by the families who will live in it.",500);
   await say("So before I show you anything, I want to listen.",400);
+  let live=false;
   if(aiAvailable||canListen()){
     const talk=canListen();
+    if(talk&&agentAvailable) import('/vendor/elevenlabs-client.js').catch(()=>{});
     await say(talk?`We can simply talk, out loud, like two people, or you can type. I'm an AI, so what you share is processed by AI services, and nothing is saved unless you choose to apply.`
                   :`I'm an AI, so what you write is processed by an AI service so I can answer you personally. Nothing is saved unless you choose to apply.`);
     const pick=await ask((box,done)=>{ const row=document.createElement('div'); row.className='row';
@@ -957,113 +1105,111 @@ async function run(){
       box.append(row); });
     if(pick.v==='off'){ offline=true; voiceOn=false; stopVoice(); $('voice-btn').hidden=true; await say(`Of course. I'll keep to my script, and nothing leaves your device.`,300); }
     else{ aiOn=aiAvailable;
-      if(pick.v==='talk'){ try{ await pick.mic; talkMode=true; await say(`Lovely. Just talk whenever you're ready, I'll know when you've finished.`,200); }
-        catch{ await say(`I can't reach your microphone, so let's write for now. You can tap the mic any time if you change your mind.`,300); } } }
+      if(pick.v==='talk'){
+        let micOk=true; try{ await pick.mic; }catch{ micOk=false; }
+        if(!micOk) await say(`I can't reach your microphone, so let's write for now. You can tap the mic any time if you change your mind.`,300);
+        else{
+          if(agentAvailable){ if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; } live=await agentConversation(); }
+          talkMode=true;
+          if(!live) await say(`Lovely. Just talk whenever you're ready, I'll know when you've finished.`,200);
+        } } }
   }
-  await say(`If you could create the perfect place for your family to wake up every morning, what would it look like? What would a day feel like there?`);
-  profile.vision=await askText(talkMode?"Speak freely, I'm listening":'Dream freely. There are no wrong answers',{cta:'Share',max:800});
-  const th=heard(profile.vision);
-  await say(`“${esc(short(profile.vision,140))}”`,300);
-  const aiV=await askAsara('vision',profile.vision);
-  await say(aiV?esc(aiV.reply):(th.length?`I hear ${listJoin(th)}. Hold on to that: this whole village starts from visions like yours.`:`Thank you. I've kept your words exactly as you wrote them. This whole village starts from visions like yours.`),500);
-  if(aiV&&aiV.followUp){
-    profile.visionFollowUpQuestion=aiV.followUp;
-    await say(esc(aiV.followUp));
-    profile.visionFollowUp=await askText('Your answer',{optional:true});
-    if(profile.visionFollowUp){ const aiA=await askAsara('vision_followup',profile.visionFollowUp,{followUpQuestion:aiV.followUp}); await say(aiA?esc(aiA.reply):`Thank you. I'll remember that.`,300); }
+  /* Anything the live conversation didn't cover, Asara asks here, in the same order. */
+  if(!profile.vision){
+    await say(`If you could create the perfect place for your family to wake up every morning, what would it look like? What would a day feel like there?`);
+    profile.vision=await askText(talkMode?"Speak freely, I'm listening":'Dream freely. There are no wrong answers',{cta:'Share',max:800});
+    const th=heard(profile.vision);
+    await say(`“${esc(short(profile.vision,140))}”`,300);
+    const aiV=await askAsara('vision',profile.vision);
+    await say(aiV?esc(aiV.reply):(th.length?`I hear ${listJoin(th)}. Hold on to that: this whole village starts from visions like yours.`:`Thank you. I've kept your words exactly as you wrote them. This whole village starts from visions like yours.`),500);
+    if(aiV&&aiV.followUp){
+      profile.visionFollowUpQuestion=aiV.followUp;
+      await say(esc(aiV.followUp));
+      profile.visionFollowUp=await askText('Your answer',{optional:true});
+      if(profile.visionFollowUp){ const aiA=await askAsara('vision_followup',profile.visionFollowUp,{followUpQuestion:aiV.followUp}); await say(aiA?esc(aiA.reply):`Thank you. I'll remember that.`,300); }
+    }
   }
-  await say(`And what's missing from the life your family lives today?`);
-  profile.wish=await askText('e.g. Neighbours who feel like family',{optional:true});
-  if(profile.wish){ const th2=heard(profile.wish).filter(x=>!th.includes(x)); const aiC=await askAsara('childhood',profile.wish);
-    await say(aiC?esc(aiC.reply):(th2.length?`${th2[0][0].toUpperCase()+th2[0].slice(1)}. I'll remember that. It's exactly what a village like this is for.`:`I'll remember that. It's often the small things that make a place home.`),400); }
-
-  await say(`I've been listening without even asking your name. What should I call you?`);
-  name=await askText('Your first name',{cta:'Continue'});
-  name=name.slice(0,30)||'friend';
+  if(profile.wish===undefined&&!live){
+    await say(`And what's missing from the life your family lives today?`);
+    profile.wish=await askText('e.g. Neighbours who feel like family',{optional:true});
+    if(profile.wish){ const th=heard(profile.vision), th2=heard(profile.wish).filter(x=>!th.includes(x)); const aiC=await askAsara('childhood',profile.wish);
+      await say(aiC?esc(aiC.reply):(th2.length?`${th2[0][0].toUpperCase()+th2[0].slice(1)}. I'll remember that. It's exactly what a village like this is for.`:`I'll remember that. It's often the small things that make a place home.`),400); }
+  }
+  if(name==='friend'){
+    await say(live?`Before we go on, what should I call you?`:`I've been listening without even asking your name. What should I call you?`);
+    name=(await askText('Your first name',{cta:'Continue'})).slice(0,30)||'friend';
+  }
   const N=esc(name);
-  await say(`${N}, here's what makes this village different: it isn't sold to whoever pays first. It grows around families who share a vision, and they don't just live in it. They <b>create</b> it.`,700);
-  await say(`So the heart of it, in one sentence: what do you believe in?`);
-  profile.belief=await askText('e.g. Kids should grow up barefoot, close to nature');
-  const aiB=await askAsara('belief',profile.belief);
-  await say(aiB?esc(aiB.reply):`That's the kind of sentence a village is built on. It's how families here find their tribe.`,300);
-  await say(`And who's coming with you? Do you have children?`);
-  profile.kids=await askChoice(['No children','1','2','3','4 or more']);
-  if(profile.kids!=='No children'){
+  if(!profile.belief){
+    if(!live) await say(`${N}, here's what makes this village different: it isn't sold to whoever pays first. It grows around families who share a vision, and they don't just live in it. They <b>create</b> it.`,700);
+    await say(`So the heart of it, in one sentence: what do you believe in?`);
+    profile.belief=await askText('e.g. Kids should grow up barefoot, close to nature');
+    const aiB=await askAsara('belief',profile.belief);
+    await say(aiB?esc(aiB.reply):`That's the kind of sentence a village is built on. It's how families here find their tribe.`,300);
+  }
+  if(!profile.kids){
+    await say(`And who's coming with you? Do you have children?`);
+    profile.kids=await askChoice(KIDS_OPTS);
+  }
+  if(profile.kids!=='No children'&&!profile.ages){
     await say(`How old are they?`);
     profile.ages=await askText('e.g. 4 and 7');
     await say(`I'll keep them in mind at every step: shade, safe paths, places to roam.`,400);
-  } else await say(`Got it.`,200);
-  await say(`Now let me show you where all of this could happen.`,300);
+  }
 
   /* ---------- 2. The land, shaped by their answers ---------- */
-    camTo({tx:CX,tz:CZ,r:470,pitch:1.25,yaw:.2},3200); orbTarget.set(north[0],26,north[1]);
-  tween(wallU.uO,'value',1,2200); tween(bLine.material,'opacity',1,2000); tween(uni.uParcel,'value',1,2000); showLabel('lb-bound',true);
-  tween(roadMat,'opacity',.8,1800); tween(builtMat,'opacity',.9,1800);
-  await say(`Here's the land, in Nusa Dua: <b>${HA} hectares</b> inside a ${fmt(PARCEL.perimeter)}-metre boundary, with the main road along the south-west side.`,700);
-  showLabel('lb-bound',false); tween(wallU.uO,'value',.25,1500);
-  const zone=new THREE.Mesh(new THREE.RingGeometry(VZ-.7,VZ,160),new THREE.MeshBasicMaterial({color:0xe9b96a,transparent:true,opacity:0,side:THREE.DoubleSide}));
-  zone.rotation.x=-Math.PI/2; zone.position.set(CX,1.4,CZ); scene.add(zone); tween(zone.material,'opacity',.8,1800);
-  let ga=0; for(let k=0;k<36;k++){ const a=k*Math.PI/18; if(reach(a)>reach(ga)) ga=a; }
-  labels['lb-zone']=new THREE.Vector3(CX,4,CZ-VZ); labels['lb-green']=new THREE.Vector3(CX+(VZ+40)*Math.cos(ga),3,CZ+(VZ+40)*Math.sin(ga));
-  showLabel('lb-zone',true); showLabel('lb-green',true);
-  camTo({tx:CX,tz:CZ,r:380,pitch:1.15,yaw:.2},2500);
-  await say(`The village would lease about a quarter of it, around <b>${fmt(VILLAGE_AREA)} m²</b> in the middle. Green-zone rules allow building on 19% of the whole parcel, about ${fmt(VILLAGE_BUILDABLE)} m², and all of that can be used inside the village. The rest stays green.`,800);
-  await say(`We first imagined 12 families, but that number is still open, and your view counts. How big is your tribe? How many families do you see in your ideal village?`);
-  const fam=await askChoice(['8 to 12, intimate','About 20','30 or more','Not sure yet']);
-  profile.familiesAnswer=fam; profile.families={'8 to 12, intimate':10,'About 20':20,'30 or more':30}[fam]||16;
-  const dots=homeSpots(profile.families).map(([x,z])=>{ const d=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('#fff8e6','rgba(233,185,106,.9)'),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending})); d.position.set(x,H(x,z)+4,z); d.scale.set(.1,.1,1); scene.add(d); return d; });
-  dots.forEach((d,j)=>setTimeout(()=>{ tween(d.scale,'x',9,600); tween(d.scale,'y',9,600); },RM?0:j*60));
-  await say(profile.families<=12?`Intimate. Everyone knows everyone, and the commons feels like a family table.`:profile.families>=30?`A lively village. More families also means the cost of the shared spaces is spread wider.`:fam==='Not sure yet'?`That's fair. Here's what about ${profile.families} homes would look like, so you can feel the space.`:`A lively middle: big enough for many friendships, small enough to know every name.`,1100);
-  showLabel('lb-zone',false); showLabel('lb-green',false); removeAll(dots); tween(zone.material,'opacity',.35,1500);
-
-  orbTarget.set(CX,24,CZ); camTo({tx:CX,tz:CZ,r:260,pitch:1.0,yaw:.4},3200);
-  $('lb-vision').textContent=`“${short(profile.vision,90)}”`; labels['lb-vision']=new THREE.Vector3(CX,22,CZ); showLabel('lb-vision',true);
-  tween(hubRing.material,'opacity',.95,2000); tween(uni.uHub,'value',1,2000); showLabel('lb-hub',true);
-  await say(`At the heart, a green commons all the families share. I've put your vision right here, because this is where it would start. You decide how it feels. Where are you on this scale?`);
-  profile.privacy=await askScale('One big family','My own retreat',5); profile.privacyAnswered=true;
-  const hubScale=1.3-(profile.privacy-1)/9*.55;
-  tween(hubRing.scale,'x',hubScale,1500); tween(hubRing.scale,'y',hubScale,1500); tween(uni.uHubR,'value',HUB_R*hubScale,1500);
-  if(profile.privacy<=4) wishes.add('commons'); else if(profile.privacy>=7) wishes.add('quiet');
-  await say(profile.privacy<=4?`Then the heart should be bigger. I've widened the commons.`:profile.privacy>=7?`Then I'll keep the commons intimate and leave more room for everyone's own space.`:`A bit of both. I'll keep the commons as it is.`,500);
+  if(!stage.land){
+    await say(`Now let me show you where all of this could happen.`,300);
+    showLand();
+    await say(`Here's the land, in Nusa Dua: <b>${HA} hectares</b> inside a ${fmt(PARCEL.perimeter)}-metre boundary, with the main road along the south-west side.`,700);
+    showVillageZone();
+    await say(`The village would lease about a quarter of it, around <b>${fmt(VILLAGE_AREA)} m²</b> in the middle. Green-zone rules allow building on 19% of the whole parcel, about ${fmt(VILLAGE_BUILDABLE)} m², and all of that can be used inside the village. The rest stays green.`,800);
+  }
+  if(profile.familiesAnswer===undefined){
+    showVillageZone();
+    await say(`We first imagined 12 families, but that number is still open, and your view counts. How big is your tribe? How many families do you see in your ideal village?`);
+    const fam=await askChoice(['8 to 12, intimate','About 20','30 or more','Not sure yet']);
+    profile.familiesAnswer=fam; profile.families={'8 to 12, intimate':10,'About 20':20,'30 or more':30}[fam]||16;
+    showFamilies(profile.families);
+    await say(profile.families<=12?`Intimate. Everyone knows everyone, and the commons feels like a family table.`:profile.families>=30?`A lively village. More families also means the cost of the shared spaces is spread wider.`:fam==='Not sure yet'?`That's fair. Here's what about ${profile.families} homes would look like, so you can feel the space.`:`A lively middle: big enough for many friendships, small enough to know every name.`,1100);
+  }
+  if(!profile.privacyAnswered){
+    const first=!stage.commons; showCommons();
+    await say(first?`At the heart, a green commons all the families share. I've put your vision right here, because this is where it would start. You decide how it feels. Where are you on this scale?`:`How should the commons feel? Where are you on this scale?`);
+    const pv=await askScale('One big family','My own retreat',5); sizeCommons(pv);
+    await say(pv<=4?`Then the heart should be bigger. I've widened the commons.`:pv>=7?`Then I'll keep the commons intimate and leave more room for everyone's own space.`:`A bit of both. I'll keep the commons as it is.`,500);
+  }
   showLabel('lb-hub',false);
-
-  await say(`What would you love to find here? Choose freely. I'll build whatever you pick.`);
-  profile.spaces=await askMulti(SPACES,'Build these'); profile.spacesAnswered=true;
-  await say(`And is there something you envision that isn't on the list? An outdoor cinema, a library, a tree house for the kids… anything at all.`);
-  profile.idea=await askText('Your idea for the village',{optional:true,cta:'Add it'});
-  if(profile.idea){ SPACES.custom=profile.idea; SPACE_SHORT.custom=short(profile.idea,24); profile.spaces.push('custom');
-    const aiI=await askAsara('idea',profile.idea);
-    await say(aiI?`${esc(aiI.reply)} I'm adding it to the commons.`:`I love that. I'm adding “${esc(short(profile.idea,60))}” to the commons, and it goes into your application as your idea.`,400); }
-  const ringR=HUB_R*hubScale*.62;
-  profile.spaces.slice(0,8).forEach((k,n,arr)=>{
-    const others=arr.filter(x=>x!=='table'), idx=others.indexOf(k), a=-Math.PI/2+idx*2*Math.PI/Math.max(1,others.length);
-    const x=CX+(k==='table'?0:ringR*Math.cos(a)), z=CZ+(k==='table'?0:ringR*Math.sin(a));
-    const g=new THREE.Group(); let m;
-    if(k==='table'){ m=new THREE.Mesh(new THREE.BoxGeometry(12,1,2.4),new THREE.MeshLambertMaterial({color:0xc9894f})); m.position.y=1.2; g.add(m); }
-    else if(k==='pool'){ m=new THREE.Mesh(new THREE.BoxGeometry(7,.4,3.6),new THREE.MeshBasicMaterial({color:0x7cc6de})); m.position.y=.3; g.add(m); }
-    else { const body=new THREE.Mesh(new THREE.BoxGeometry(4.6,2.6,4.6),new THREE.MeshLambertMaterial({color:0xe8dcc0})); body.position.y=1.3;
-      const roof=new THREE.Mesh(new THREE.ConeGeometry(4.3,2.2,4),new THREE.MeshLambertMaterial({color:0xe9b96a})); roof.position.y=3.7; roof.rotation.y=Math.PI/4; g.add(body,roof); }
-    g.position.set(x,H(x,z),z); g.scale.setScalar(.001); scene.add(g);
-    setTimeout(()=>grow(g,1100),RM?0:200+n*350);
-    const el=document.createElement('div'); el.className='label space'; el.id='sp-'+k; el.textContent=SPACE_SHORT[k]; document.body.append(el);
-    labels[el.id]=new THREE.Vector3(x,H(x,z)+7,z); setTimeout(()=>showLabel(el.id,true),RM?0:500+n*350);
-  });
-  await say(profile.spaces.length?`There ${profile.spaces.length===1?'it is':'they are'}. See how fast a blank page fills up?`:`That's fine. The families will dream these up together.`,700);
-  await say(`While it takes shape, just for fun: is there a line from a film that feels like your family?`);
-  profile.film=await askText('A quote, or just the film',{optional:true});
-  if(profile.film){ const aiF=await askAsara('film',profile.film); await say(aiF?esc(aiF.reply):`Good choice. I'd watch that one together.`,200); }
-
-  await say(`Around the commons, there's room for food. How important is <b>food quality</b> to you?`);
-  profile.food=await askScale('Not much','Everything',7);
-  const forest=[]; const nTrees=Math.round(profile.food*3.2);
-  for(let t=0;t<nTrees;t++){ const a=Math.random()*Math.PI*2, rr=HUB_R*hubScale+1+Math.random()*Math.max(2,33-HUB_R*hubScale), x=CX+rr*Math.cos(a), z=CZ+rr*Math.sin(a); forest.push(tree(x,z,1.2+Math.random()*.7)); }
-  forest.forEach((t,j)=>setTimeout(()=>grow(t,800),RM?0:j*45));
-  await say(profile.food>=8?`Then let's plant. That's a food forest around the commons, one of the first ideas on the table.`:profile.food<=4?`A few trees, then. Not everyone needs to be a gardener.`:`A healthy middle: a good garden, without the obsession.`,400);
-  await say(`Do you eat meat?`);
-  profile.meat=await askChoice(['Yes','Sometimes','No, plant-based']);
-  await say(`And would you mind if your neighbours do?`);
-  profile.meatOk=await askChoice(['Not at all','A little','Yes, I would']);
-  await say(`Thank you for being honest. A tribe works when people agree on the small things too, like what's cooked in a shared kitchen, so it helps to know this early.`,400);
+  if(!profile.spacesAnswered){
+    await say(`What would you love to find here? Choose freely. I'll build whatever you pick.`);
+    profile.spaces=await askMulti(SPACES,'Build these'); profile.spacesAnswered=true;
+    if(profile.idea===undefined){
+      await say(`And is there something you envision that isn't on the list? An outdoor cinema, a library, a tree house for the kids… anything at all.`);
+      profile.idea=await askText('Your idea for the village',{optional:true,cta:'Add it'});
+      if(profile.idea){ SPACES.custom=profile.idea; SPACE_SHORT.custom=short(profile.idea,24); profile.spaces.push('custom');
+        const aiI=await askAsara('idea',profile.idea);
+        await say(aiI?`${esc(aiI.reply)} I'm adding it to the commons.`:`I love that. I'm adding “${esc(short(profile.idea,60))}” to the commons, and it goes into your application as your idea.`,400); }
+    }
+    buildSpaces(profile.spaces);
+    await say(profile.spaces.length?`There ${profile.spaces.length===1?'it is':'they are'}. See how fast a blank page fills up?`:`That's fine. The families will dream these up together.`,700);
+    if(!live&&profile.film===undefined){
+      await say(`While it takes shape, just for fun: is there a line from a film that feels like your family?`);
+      profile.film=await askText('A quote, or just the film',{optional:true});
+      if(profile.film){ const aiF=await askAsara('film',profile.film); await say(aiF?esc(aiF.reply):`Good choice. I'd watch that one together.`,200); }
+    }
+  }
+  if(profile.food===undefined){
+    await say(`Around the commons, there's room for food. How important is <b>food quality</b> to you?`);
+    profile.food=await askScale('Not much','Everything',7);
+    plantFood(profile.food);
+    await say(profile.food>=8?`Then let's plant. That's a food forest around the commons, one of the first ideas on the table.`:profile.food<=4?`A few trees, then. Not everyone needs to be a gardener.`:`A healthy middle: a good garden, without the obsession.`,400);
+  }
+  if(profile.meat===undefined){ await say(`Do you eat meat?`); profile.meat=await askChoice(MEAT_OPTS); }
+  if(profile.meatOk===undefined){
+    await say(`And would you mind if your neighbours do?`);
+    profile.meatOk=await askChoice(MEATOK_OPTS);
+    await say(`Thank you for being honest. A tribe works when people agree on the small things too, like what's cooked in a shared kitchen, so it helps to know this early.`,400);
+  }
 
   /* ---------- 3. Your home ---------- */
   showLabel('lb-vision',false);
@@ -1270,7 +1416,7 @@ async function run(){
         families:profile.families, familiesAnswer:profile.familiesAnswer, privacy:profile.privacy, spaces:profile.spaces.map(k=>SPACES[k]),
         idea:profile.idea||undefined, food:profile.food, meat:profile.meat, meatOk:profile.meatOk, material:sty.name, stylesLiked:profile.stylesLiked, stylesPassed:profile.stylesPassed,
         materials:profile.materials, homeType:profile.homeType, modules:profile.modules, wishes:[...wishes].map(w=>WISH[w]),
-        homeName:profile.homeName||undefined, builderEdits:profile.builderEdits||0, fit:profile.fit,
+        homeName:profile.homeName||undefined, builderEdits:profile.builderEdits||0, fit:profile.fit, transcript:profile.transcript||undefined, agentConversationId:profile.agentConversationId||undefined,
         direction:DIRS[((Math.round(spot.a/(Math.PI/4))%8)+8)%8] },
       plan:{ budget, land:P.land, floor:P.floor, storeys:P.storeys, total:P.total }, utm };
   };

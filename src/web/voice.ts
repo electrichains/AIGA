@@ -4,8 +4,11 @@
  *   POST /api/asara/speak       { text } -> audio/mpeg of Asara saying it
  *   POST /api/asara/transcribe  raw audio (webm/mp4/ogg) -> { text }
  *
+ *   POST /api/asara/agent-session  -> { signedUrl } for a live call with the Asara agent
+ *
  * Environment: ELEVENLABS_API_KEY (required to enable voice), ELEVENLABS_VOICE_ID,
- * ELEVENLABS_MODEL (text-to-speech) and ELEVENLABS_STT_MODEL (speech-to-text).
+ * ELEVENLABS_MODEL (text-to-speech), ELEVENLABS_STT_MODEL (speech-to-text) and
+ * ELEVENLABS_AGENT_ID (the private Asara agent for live conversations).
  */
 import express, { Router } from 'express';
 import { z } from 'zod';
@@ -17,6 +20,11 @@ const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 
 export function voiceEnabled(): boolean {
   return Boolean(process.env.ELEVENLABS_API_KEY);
+}
+
+/** A live conversation needs the key and a private agent; the browser only ever gets a short-lived signed URL. */
+export function agentEnabled(): boolean {
+  return voiceEnabled() && Boolean(process.env.ELEVENLABS_AGENT_ID);
 }
 
 const voiceId = () => process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL';
@@ -134,6 +142,28 @@ export function voiceRouter(): Router {
       }
     },
   );
+
+  router.post('/api/asara/agent-session', rateLimit({ windowMs: 10 * 60_000, max: 6 }), async (_req, res) => {
+    if (!agentEnabled()) {
+      res.status(503).json({ error: 'Live conversation is off' });
+      return;
+    }
+    try {
+      const url = `${API}/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(process.env.ELEVENLABS_AGENT_ID!)}`;
+      const response = await fetch(url, { headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY! }, signal: AbortSignal.timeout(10_000) });
+      const data = (await response.json().catch(() => ({}))) as { signed_url?: string };
+      if (!response.ok || !data.signed_url) {
+        console.error('[Voice] ElevenLabs agent session failed', response.status, JSON.stringify(data).slice(0, 300));
+        res.status(502).json({ error: 'Asara could not start the call' });
+        return;
+      }
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ signedUrl: data.signed_url });
+    } catch (err) {
+      console.error('[Voice] agent session error', (err as Error).message);
+      res.status(502).json({ error: 'Asara could not start the call' });
+    }
+  });
 
   return router;
 }

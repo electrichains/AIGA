@@ -84,6 +84,12 @@ describe('Applications to J-Mission', () => {
     for (const key of Object.keys(attrs)) assert.ok(key.length <= 60, key);
   });
 
+  test('a live conversation reaches J-Mission as text and an id', () => {
+    const app = ApplicationInput.parse({ ...sample, profile: { ...sample.profile, transcript: 'Asara: Hello\nThem: We dream of a big table', agentConversationId: 'conv_123' } });
+    assert.equal(toCrmAttributes(app).aiga_agent_conversation_id, 'conv_123');
+    assert.match(memoryNote(app), /conversation with Asara \(voice\):\nAsara: Hello\nThem: We dream of a big table/);
+  });
+
   test('the memory note carries the vision and the sketch', () => {
     const note = memoryNote(ApplicationInput.parse(sample));
     assert.match(note, /Their ideal village: Kids running/);
