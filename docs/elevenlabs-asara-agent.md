@@ -14,7 +14,8 @@ The live agent is `agent_6301m53pv4rnfj5t1s6qn3ycp36n` (published 17 October 202
 
 | Setting | Value |
 |---|---|
-| Voice | Any default. Under **Settings → Security → Overrides**, turn **Voice** on: the page then asks for the `ELEVENLABS_VOICE_ID` voice on Render, so Asara sounds the same before and after the call |
+| Overrides | Under **Settings → Security → Overrides**, turn on **Voice** and **First message**. First message lets a dropped call resume with "Sorry, we got cut off…" and the next question |
+| Voice | Any default. With the Voice override on, the page then asks for the `ELEVENLABS_VOICE_ID` voice on Render, so Asara sounds the same before and after the call |
 | Language | English. Add other languages if you want her to switch when a family does |
 | LLM | Gemini Flash, for speed. Any fast model works |
 | Max conversation duration | 720 seconds (Settings → Advanced). The page also hangs up at 12 minutes |
@@ -115,7 +116,8 @@ These items let you check each call in the ElevenLabs dashboard too.
 3. Check `https://aiga-mcp.onrender.com/api/onboarding/status`. It should show `"agent": true`.
 
 If the agent can't start for any reason, **Let's talk** falls back to the hands-free voice flow without a live
-agent, and nothing breaks.
+agent, and nothing breaks. If a call drops, the page reconnects once and Asara resumes at the next question,
+knowing everything said so far; if that fails too, the walk carries on without the call and asks only what is missing.
 
 ## Cost
 

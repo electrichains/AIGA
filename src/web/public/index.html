@@ -1024,41 +1024,82 @@ function applyAnswer(field,value){
 }
 /* A live conversation with the Asara agent on ElevenLabs. Our server hands out a short-lived signed URL, so the
    API key never reaches the browser. Asara drives the land through client tools, and the call ends when she has
-   heard enough (finish_conversation), when the person ends it, or after 12 minutes. Resolves true if a call took place. */
-let agentAvailable=false;
+   heard enough (finish_conversation), when the person ends it, or after 12 minutes.
+   If the line drops (mobile networks, a locked phone), the page reconnects once and Asara picks up exactly where
+   she was; if that fails, the walk carries on without the call and only asks what is still missing.
+   Resolves true if a call took place; agentEndedBy says how it ended ('done', 'user' or 'drop'). */
+let agentAvailable=false, agentEndedBy='';
+const RESUME_STEPS=[
+  ['vision',()=>profile.vision,'tell me: what would the perfect place for your family to wake up every morning look like?'],
+  ['missing',()=>profile.wish!==undefined,"what's missing from your family's life today?"],
+  ['name',()=>name!=='friend','what should I call you?'],
+  ['belief',()=>profile.belief,'in one sentence, what do you believe in?'],
+  ['children',()=>profile.kids,"who's coming with you on this journey?"],
+  ['land',()=>stage.land,'shall I show you where all of this could happen?'],
+  ['families',()=>profile.familiesAnswer!==undefined,'how many families do you imagine in the village?'],
+  ['commons',()=>profile.privacyAnswered,'between one big family and your own retreat, where do you feel your family belongs?'],
+  ['spaces',()=>profile.spacesAnswered,'what would you love to find in the commons?'],
+  ['food',()=>profile.food!==undefined,'how important is food quality to you, from one to ten?'],
+  ['meat',()=>profile.meat!==undefined,'do you eat meat?'],
+  ['meat_ok',()=>profile.meatOk!==undefined,'would you mind if your neighbours do?'],
+];
+function agentResume(){
+  const next=RESUME_STEPS.find(([,known])=>!known());
+  const who=name!=='friend'?`, ${name}`:'';
+  const first=next?`Sorry${who}, we got cut off for a moment. So, ${next[2]}`:`Sorry${who}, we got cut off for a moment. I have everything I need, so let's find your own corner of the village.`;
+  const known=[ name!=='friend'&&`name: ${name}`, profile.vision&&`vision: ${profile.vision}`, profile.visionFollowUp&&`more on the vision: ${profile.visionFollowUp}`,
+    profile.wish&&`missing today: ${profile.wish}`, profile.belief&&`belief: ${profile.belief}`, profile.kids&&`children: ${profile.kids}${profile.ages?` (${profile.ages})`:''}`,
+    profile.familiesAnswer!==undefined&&`families: about ${profile.families}`, profile.privacyAnswered&&`commons: ${profile.privacy} out of 10 (1 = one big family)`,
+    profile.spacesAnswered&&`spaces: ${profile.spaces.map(k=>SPACES[k]).join(', ')||'none yet'}`, profile.idea&&`their own idea: ${profile.idea}`,
+    profile.food!==undefined&&`food quality: ${profile.food}/10`, profile.meat&&`eats meat: ${profile.meat}`, profile.meatOk&&`minds neighbours eating meat: ${profile.meatOk}` ].filter(Boolean);
+  const shown=[stage.land&&'the land',profile.familiesAnswer!==undefined&&'the homes',stage.commons&&'the commons',profile.spacesAnswered&&'the shared spaces',profile.food!==undefined&&'the food forest'].filter(Boolean);
+  const context=`The call dropped and has just reconnected. You already greeted them again with: "${first}" Do not repeat questions they have answered. What you already know: ${known.join('; ')||'nothing yet'}.`+
+    (shown.length?` Already on screen: ${shown.join(', ')}.`:'')+(next?` Continue from "${next[0]}" and follow your instructions from there.`:' Everything is covered: thank them in one sentence and call finish_conversation.');
+  return {first,context};
+}
 async function agentConversation(){
-  let Conversation, signedUrl, voiceId=null;
+  let Conversation;
   try{ ({Conversation}=await import('/vendor/elevenlabs-client.js')); }catch{ return false; }
-  try{ const r=await fetch('/api/asara/agent-session',{method:'POST'}); if(!r.ok) return false; ({signedUrl,voiceId}=await r.json()); }catch{ return false; }
-  if(!signedUrl) return false;
-  stopVoice(); stopListening(false);
+  stopVoice(); stopListening(false); agentEndedBy='';
+  const lines=[], ids=[];
+  let everConnected=false;
+  actions.innerHTML='';
+  const row=document.createElement('form'); row.className='row';
+  const inp=document.createElement('input'); inp.type='text'; inp.id='agent-input'; inp.placeholder='Talk, or type to Asara'; inp.setAttribute('aria-label','Type to Asara'); inp.maxLength=500;
+  const mute=document.createElement('button'); mute.type='button'; mute.className='mic rec'; mute.innerHTML=MIC_SVG; mute.setAttribute('aria-label','Mute my microphone'); mute.title='Mute my microphone';
+  const send=button('Send'); row.append(inp,mute,send);
+  const st=document.createElement('div'); st.className='hint talk'; st.setAttribute('role','status');
+  const leave=button('Continue without the call','skip'); leave.type='button';
+  actions.append(row,st,leave);
+  const status=t=>{ st.textContent=t; };
+  status('Connecting to Asara…');
+  // Expressive voices add tone tags like [warm]; she still speaks with that tone, but the chat shows only her words.
+  const addLine=(who,text)=>{ const t=String(text||'').replace(/\[[a-z][a-z ]{0,20}\]\s*/gi,'').replace(/\s+([,.!?])/g,'$1').trim(); if(!t) return; lines.push(`${who==='ai'?'Asara':'Them'}: ${t}`);
+    const m=document.createElement('div'); m.className='msg '+(who==='ai'?'ai':'me'); m.textContent=t; log.appendChild(m); log.scrollTop=log.scrollHeight; };
   return new Promise(resolve=>{
-    let conv=null, done=false, ending=false, connected=false;
-    const lines=[];
-    const status=t=>{ st.textContent=t; };
-    actions.innerHTML='';
-    const row=document.createElement('form'); row.className='row';
-    const inp=document.createElement('input'); inp.type='text'; inp.id='agent-input'; inp.placeholder='Talk, or type to Asara'; inp.setAttribute('aria-label','Type to Asara'); inp.maxLength=500;
-    const mute=document.createElement('button'); mute.type='button'; mute.className='mic rec'; mute.innerHTML=MIC_SVG; mute.setAttribute('aria-label','Mute my microphone'); mute.title='Mute my microphone';
-    let muted=false;
+    let conv=null, done=false, ending=false, muted=false, reconnects=0, attempt=0;
+    const cap=setTimeout(()=>finish('done'),12*60*1000);
+    const onOffline=()=>dropped();
+    window.addEventListener('offline',onOffline);
     mute.onclick=()=>{ muted=!muted; try{ conv&&conv.setMicMuted(muted); }catch{} mute.classList.toggle('rec',!muted); mute.setAttribute('aria-label',muted?'Unmute my microphone':'Mute my microphone'); status(muted?'Your microphone is off. Type, or tap the mic to talk again.':'Asara is listening.'); };
-    const send=button('Send'); row.append(inp,mute,send);
-    const st=document.createElement('div'); st.className='hint talk'; st.setAttribute('role','status');
-    const end=button('Finish the conversation','skip'); end.type='button'; end.onclick=()=>finish();
-    actions.append(row,st,end); status('Connecting to Asara…');
+    leave.onclick=()=>finish('user');
     inp.addEventListener('input',()=>{ try{ conv&&conv.sendUserActivity(); }catch{} });
     row.addEventListener('submit',e=>{ e.preventDefault(); const v=inp.value.trim(); if(!v||!conv) return; inp.value=''; try{ conv.sendUserMessage(v); }catch{} });
-    const cap=setTimeout(()=>finish(),12*60*1000);
-    async function finish(){
-      if(done) return; done=true; clearTimeout(cap);
-      try{ conv&&await conv.endSession(); }catch{}
-      $('gorb').classList.remove('speaking'); actions.innerHTML='';
+    // Never wait on the old connection: a dropped line may never confirm that it hung up.
+    function hangUp(){ const c=conv; conv=null; if(c){ try{ c.endSession().catch(()=>{}); }catch{} } }
+    function finish(how){
+      if(done) return; done=true; agentEndedBy=how; clearTimeout(cap); window.removeEventListener('offline',onOffline);
+      hangUp(); $('gorb').classList.remove('speaking'); actions.innerHTML='';
       if(lines.length) profile.transcript=lines.join('\n').slice(-12000);
-      resolve(connected);
+      resolve(everConnected);
     }
-    // Expressive voices add tone tags like [warm]; she still speaks with that tone, but the chat shows only her words.
-    const addLine=(who,text)=>{ const t=String(text||'').replace(/\[[a-z][a-z ]{0,20}\]\s*/gi,'').replace(/\s+([,.!?])/g,'$1').trim(); if(!t) return; lines.push(`${who==='ai'?'Asara':'Them'}: ${t}`);
-      const m=document.createElement('div'); m.className='msg '+(who==='ai'?'ai':'me'); m.textContent=t; log.appendChild(m); log.scrollTop=log.scrollHeight; };
+    async function dropped(){
+      if(done||!everConnected) return;
+      hangUp(); $('gorb').classList.remove('speaking');
+      if(ending){ finish('done'); return; }
+      if(reconnects<1&&navigator.onLine){ reconnects++; status('The line dropped. Reconnecting to Asara…'); if(await connect(true)) return; }
+      finish('drop');
+    }
     const clientTools={
       save_answer:({field,value})=>applyAnswer(field,value),
       show_land:()=>{ showLand(); setTimeout(showVillageZone,2600); return `The land is on screen: ${HA} hectares in Nusa Dua with a ${fmt(PARCEL.perimeter)}-metre boundary and the main road on the south-west side. The village zone in the middle (about ${fmt(VILLAGE_AREA)} m²) is highlighted, and the green land around it stays green.`; },
@@ -1068,20 +1109,34 @@ async function agentConversation(){
       build_spaces:({spaces})=>{ const keys=spaceKeys(spaces); if(profile.idea&&!keys.includes('custom')) keys.push('custom'); profile.spaces=keys; profile.spacesAnswered=true; buildSpaces(keys); updateProgress();
         return keys.length?`Built in the commons: ${keys.map(k=>SPACES[k]).join(', ')}.`:'Nothing matched the list; save their own idea with save_answer field "idea" so it appears.'; },
       plant_food_forest:({importance})=>{ const n=clamp10(importance)||6; profile.food=n; plantFood(n); updateProgress(); return n>=8?'A food forest is growing around the commons.':n<=4?'A few fruit trees appeared around the commons.':'A good garden is growing around the commons.'; },
-      finish_conversation:()=>{ ending=true; setTimeout(()=>finish(),9000); return 'ok, say one short warm closing sentence and stop'; },
+      finish_conversation:()=>{ ending=true; setTimeout(()=>finish('done'),9000); return 'ok, say one short warm closing sentence and stop'; },
     };
-    const start=(withVoice)=>Conversation.startSession({
-      signedUrl, clientTools, ...(withVoice&&voiceId?{overrides:{tts:{voiceId}}}:{}),
-      dynamicVariables:{ village_hectares:HA, village_area_m2:VILLAGE_AREA, buildable_m2:VILLAGE_BUILDABLE },
-      onConnect:({conversationId})=>{ connected=true; profile.agentConversationId=conversationId; status('Asara is listening.'); },
-      onMessage:({message,source,role})=>addLine((role||source)==='user'?'me':'ai',message),
-      onModeChange:({mode})=>{ $('gorb').classList.toggle('speaking',mode==='speaking'); if(!muted) status(mode==='speaking'?'Asara is speaking. You can interrupt her any time.':'Asara is listening.'); if(ending&&mode==='listening') setTimeout(()=>finish(),600); },
-      onDisconnect:()=>finish(),
-      onError:()=>{},
-    });
-    // If the agent doesn't allow a voice override, start again with its own voice rather than fail.
-    start(true).catch(async()=>{ if(!voiceId) throw new Error('no session'); const r=await fetch('/api/asara/agent-session',{method:'POST'}); if(!r.ok) throw new Error('no session'); signedUrl=(await r.json()).signedUrl; return start(false); })
-      .then(c=>{ conv=c; if(done) c.endSession().catch(()=>{}); }).catch(()=>finish());
+    async function session(resume,withOverrides){
+      const r=await fetch('/api/asara/agent-session',{method:'POST'}); if(!r.ok) throw new Error('no session');
+      const {signedUrl,voiceId}=await r.json(); if(!signedUrl) throw new Error('no session');
+      const my=++attempt;
+      const overrides={...(voiceId?{tts:{voiceId}}:{}),...(resume?{agent:{firstMessage:resume.first}}:{})};
+      return Conversation.startSession({
+        signedUrl, clientTools, ...(withOverrides&&Object.keys(overrides).length?{overrides}:{}),
+        onConnect:({conversationId})=>{ if(my!==attempt) return; everConnected=true; ids.push(conversationId); profile.agentConversationId=ids.join(',').slice(0,80); status('Asara is listening.'); },
+        onMessage:({message,source,role})=>{ if(my===attempt) addLine((role||source)==='user'?'me':'ai',message); },
+        onModeChange:({mode})=>{ if(my!==attempt) return; $('gorb').classList.toggle('speaking',mode==='speaking'); if(!muted) status(mode==='speaking'?'Asara is speaking. You can interrupt her any time.':'Asara is listening.'); if(ending&&mode==='listening') setTimeout(()=>finish('done'),600); },
+        onDisconnect:(d)=>{ if(my!==attempt||done) return; if(d&&d.reason==='agent') finish('done'); else if(d&&d.reason==='user') return; else dropped(); },
+        onError:()=>{},
+      });
+    }
+    async function connect(isResume){
+      const resume=isResume?agentResume():null;
+      let c=null;
+      try{ c=await session(resume,true); }
+      catch{ try{ c=await session(resume,false); }catch{ return false; } }   // e.g. the agent doesn't allow an override
+      if(done){ try{ c.endSession().catch(()=>{}); }catch{} return false; }
+      conv=c;
+      if(resume){ try{ c.sendContextualUpdate(resume.context); }catch{} }
+      if(muted){ try{ c.setMicMuted(true); }catch{} }
+      return true;
+    }
+    connect(false).then(ok=>{ if(!ok) finish('drop'); });
   });
 }
 /* Keep the screen on during the walk, so the phone doesn't lock while Asara talks or listens.
@@ -1125,6 +1180,8 @@ async function run(){
         if(!micOk) await say(`I can't reach your microphone, so let's write for now. You can tap the mic any time if you change your mind.`,300);
         else{
           if(agentAvailable){ if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; } live=await agentConversation(); }
+          if(live&&agentEndedBy==='drop') await say(`We lost the line, but nothing is lost: I remember everything you told me. Let's carry on right here, just keep talking.`,300);
+          else if(live&&agentEndedBy==='user') await say(`Of course. Let's carry on right here.`,200);
           talkMode=true;
           if(!live) await say(`Lovely. Just talk whenever you're ready, I'll know when you've finished.`,200);
         } } }
