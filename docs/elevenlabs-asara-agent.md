@@ -9,16 +9,17 @@ The page fills in anything the call missed, so a dropped call never loses the fa
 
 ## 1. Create the agent
 
-In ElevenLabs, open **Agents**, choose **Create agent**, start from **Blank**, and name it `Asara`.
+In ElevenLabs, open **Agents**, choose **New agent**, start from **Blank Agent**, and name it `[AIGA] Asara`.
+The live agent is `agent_6301m53pv4rnfj5t1s6qn3ycp36n` (published 17 October 2026).
 
 | Setting | Value |
 |---|---|
-| Voice | The same voice as `ELEVENLABS_VOICE_ID` on Render, so Asara sounds the same before and after the call |
+| Voice | Any default. Under **Settings → Security → Overrides**, turn **Voice** on: the page then asks for the `ELEVENLABS_VOICE_ID` voice on Render, so Asara sounds the same before and after the call |
 | Language | English. Add other languages if you want her to switch when a family does |
 | LLM | Gemini Flash, for speed. Any fast model works |
-| Max conversation duration | 720 seconds. The page also hangs up at 12 minutes |
+| Max conversation duration | 720 seconds (Settings → Advanced). The page also hangs up at 12 minutes |
+| End conversation after silence | 60 seconds, so a call left open doesn't keep running |
 | Authentication | **On** (private agent). The page gets a signed URL from our server, so the API key never reaches the browser |
-| Allowlist (if offered) | `aiga-mcp.onrender.com` |
 
 ## 2. First message
 
@@ -86,7 +87,7 @@ Never ask for an email, a phone number, money or documents in conversation; the 
 
 ## 4. Client tools
 
-Add each one under **Tools**, choose **Add tool**, then **Client**. Turn **Wait for response** on for every tool, so
+Add each one under **Tools**, choose **Add tool**, then **Client** (or **Edit as JSON**). Turn **Wait for response** on for every tool, so
 Asara hears what changed on screen. The names must match exactly.
 
 | Name | Description | Parameters |
