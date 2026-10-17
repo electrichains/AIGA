@@ -1056,7 +1056,8 @@ async function agentConversation(){
       if(lines.length) profile.transcript=lines.join('\n').slice(-12000);
       resolve(connected);
     }
-    const addLine=(who,text)=>{ const t=String(text||'').trim(); if(!t) return; lines.push(`${who==='ai'?'Asara':'Them'}: ${t}`);
+    // Expressive voices add tone tags like [warm]; she still speaks with that tone, but the chat shows only her words.
+    const addLine=(who,text)=>{ const t=String(text||'').replace(/\[[a-z][a-z ]{0,20}\]\s*/gi,'').replace(/\s+([,.!?])/g,'$1').trim(); if(!t) return; lines.push(`${who==='ai'?'Asara':'Them'}: ${t}`);
       const m=document.createElement('div'); m.className='msg '+(who==='ai'?'ai':'me'); m.textContent=t; log.appendChild(m); log.scrollTop=log.scrollHeight; };
     const clientTools={
       save_answer:({field,value})=>applyAnswer(field,value),
