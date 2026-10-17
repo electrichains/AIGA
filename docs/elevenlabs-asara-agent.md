@@ -118,7 +118,12 @@ These items let you check each call in the ElevenLabs dashboard too.
 
 If the agent can't start for any reason, **Let's talk** falls back to the hands-free voice flow without a live
 agent, and nothing breaks. If a call drops, the page reconnects once and Asara resumes at the next question,
-knowing everything said so far; if that fails too, the walk carries on without the call and asks only what is missing.
+knowing everything said so far. If that fails, the page carries on with the same steps and keeps bringing the call
+back (after 10 s, 30 s, 60 s, then every 90 s, and whenever the phone is back online), each time at the next open
+step. Someone who taps "Continue without the call" isn't pulled back, but each question offers "Talk with Asara live again".
+
+Languages: English, Italian, German and Russian, with the **Detect language** tool on. The call starts in the phone's
+language, and the voice is Freya (`u8ADrbquiJqufR9XMtb8`) everywhere.
 
 ## Cost
 
