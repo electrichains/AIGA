@@ -1084,8 +1084,19 @@ async function agentConversation(){
       .then(c=>{ conv=c; if(done) c.endSession().catch(()=>{}); }).catch(()=>finish());
   });
 }
+/* Keep the screen on during the walk, so the phone doesn't lock while Asara talks or listens.
+   Browsers drop the lock when the page is hidden; it comes back when the person returns. */
+let wakeLock=null, wantAwake=false;
+async function keepAwake(on){
+  wantAwake=on;
+  try{
+    if(on&&!wakeLock&&'wakeLock' in navigator&&document.visibilityState==='visible'){ wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>{ wakeLock=null; }); }
+    else if(!on&&wakeLock){ await wakeLock.release(); wakeLock=null; }
+  }catch{ wakeLock=null; }
+}
+document.addEventListener('visibilitychange',()=>{ if(wantAwake&&document.visibilityState==='visible') keepAwake(true); });
 async function run(){
-  unlockVoice();
+  unlockVoice(); keepAwake(true);
   $('arrival').classList.add('gone'); await dive(); tween(stars.material,'opacity',0,2500);
   idleSpin=0.00003;
   await camTo({r:430,pitch:.8,yaw:.55},RM?0:3600);
