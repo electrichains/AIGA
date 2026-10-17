@@ -130,3 +130,6 @@ language, and the voice is Freya (`u8ADrbquiJqufR9XMtb8`) everywhere.
 Agent calls are billed per minute ($0.08 a minute on every plan; see the ElevenLabs Agents pricing page), plus the
 LLM. Calls cover only the personal part, so expect about 6–8 minutes per family, roughly $0.50–0.70. The home
 builder, swipe deck and budget use the much cheaper per-line voice.
+
+For the full exported configuration (prompt, greetings in all four languages, tool JSON) and the complete conversation
+workflow, see [asara-agent-export.md](asara-agent-export.md).
