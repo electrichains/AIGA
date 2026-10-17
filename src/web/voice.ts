@@ -144,7 +144,7 @@ export function voiceRouter(): Router {
     },
   );
 
-  router.post('/api/asara/agent-session', rateLimit({ windowMs: 10 * 60_000, max: 6 }), async (_req, res) => {
+  router.post('/api/asara/agent-session', rateLimit({ windowMs: 10 * 60_000, max: 20 }), async (_req, res) => {
     if (!agentEnabled()) {
       res.status(503).json({ error: 'Live conversation is off' });
       return;

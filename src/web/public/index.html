@@ -673,7 +673,15 @@ async function say(html,pause=500){
   return m;
 }
 function me(text){ const m=document.createElement('div'); m.className='msg me'; m.textContent=text; log.appendChild(m); log.scrollTop=log.scrollHeight; }
-function ask(build){ return new Promise(res=>{ actions.innerHTML=''; build(actions,v=>{stopVoice(); stopListening(false); actions.innerHTML=''; res(v); setTimeout(updateProgress,0);}); }); }
+function ask(build){ return new Promise(res=>{ actions.innerHTML='';
+  let settled=false; const finish=v=>{ if(settled) return; settled=true; if(askInterrupt===interrupt) askInterrupt=null; stopVoice(); stopListening(false); actions.innerHTML=''; res(v); setTimeout(updateProgress,0); };
+  const interrupt=()=>finish(TAKEOVER); askInterrupt=interrupt;
+  build(actions,finish);
+  if(liveCall.inPersonal&&liveCall.returnOffered&&!liveCall.want){
+    const back=button('Talk with Asara live again','skip'); back.type='button';
+    back.onclick=()=>{ liveCall.want=true; liveCall.due=true; liveCall.backByChoice=true; interrupt(); };
+    actions.append(back);
+  } }); }
 function button(label,cls='btn small'){ const b=document.createElement('button'); b.className=cls; b.textContent=label; return b; }
 const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=n=>n.toLocaleString('en-US');
@@ -1022,6 +1030,29 @@ function applyAnswer(field,value){
   }
   updateProgress(); return 'saved';
 }
+/* Bringing the live call back. While the personal part is still open, a dropped call is retried after
+   10 s, 30 s, 60 s and then every 90 s, and as soon as the phone is back online or the page is visible again.
+   When it's due, the question on screen is put away and the call takes over from the next open step. */
+const TAKEOVER=Symbol('takeover');
+let askInterrupt=null;
+const liveCall={
+  want:false, inPersonal:false, returnOffered:false, due:true, timer:0, tries:0, active:false,
+  retry(){ this.active=true; clearTimeout(this.timer); const wait=[10,30,60][this.tries]||90; this.tries++; this.timer=setTimeout(()=>this.attempt(),wait*1000); },
+  attempt(){
+    if(!this.active) return;
+    if(!navigator.onLine||document.visibilityState!=='visible'||!askInterrupt){ this.timer=setTimeout(()=>this.attempt(),3000); return; }
+    fetch('/api/onboarding/status',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(st=>{
+      if(!this.active) return;
+      if(st&&st.agent&&askInterrupt){ this.active=false; this.due=true; this.tries=0; askInterrupt(); }
+      else this.retry();
+    }).catch(()=>this.retry());
+  },
+  nudge(){ if(this.active){ clearTimeout(this.timer); this.timer=setTimeout(()=>this.attempt(),1500); } },
+  stop(){ this.active=false; clearTimeout(this.timer); document.getElementById('live-again')?.remove(); },
+  offerReturn(){ this.returnOffered=true; },   // they chose to continue on the page: each question then offers a quiet way back
+};
+window.addEventListener('online',()=>liveCall.nudge());
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') liveCall.nudge(); });
 /* A live conversation with the Asara agent on ElevenLabs. Our server hands out a short-lived signed URL, so the
    API key never reaches the browser. Asara drives the land through client tools, and the call ends when she has
    heard enough (finish_conversation), when the person ends it, or after 12 minutes.
@@ -1045,22 +1076,24 @@ const RESUME_STEPS=[
 ];
 /* Asara speaks English, Italian, German and Russian; the call starts in the phone's language, and she switches if they do. */
 const CALL_LANG=(()=>{ const l=String(navigator.language||'en').slice(0,2).toLowerCase(); return ['it','de','ru'].includes(l)?l:'en'; })();
+const RESUME_WELCOME={ it:w=>`Bentornato${w}. Riprendiamo da dove eravamo.`, de:w=>`Schön, dass du wieder da bist${w}. Machen wir da weiter, wo wir waren.`, ru:w=>`Рада, что ты вернулся${w}. Продолжим с того места, где остановились.` };
 const RESUME_SORRY={ it:w=>`Scusa${w}, la linea è caduta per un momento. Riprendiamo da dove eravamo.`, de:w=>`Entschuldige${w}, die Verbindung war kurz weg. Machen wir da weiter, wo wir waren.`, ru:w=>`Извини${w}, связь ненадолго прервалась. Продолжим с того места, где остановились.` };
 function agentResume(){
   const next=RESUME_STEPS.find(([,known])=>!known());
   const who=name!=='friend'?`, ${name}`:'';
-  const first=CALL_LANG!=='en'?RESUME_SORRY[CALL_LANG](who):next?`Sorry${who}, we got cut off for a moment. So, ${next[2]}`:`Sorry${who}, we got cut off for a moment. I have everything I need, so let's find your own corner of the village.`;
+  const back=liveCall.backByChoice; liveCall.backByChoice=false;
+  const first=back?(CALL_LANG!=='en'?RESUME_WELCOME[CALL_LANG](who):`Lovely to have you back${who}.`+(next?` So, ${next[2]}`:` I have everything I need, so let's find your own corner of the village.`)):CALL_LANG!=='en'?RESUME_SORRY[CALL_LANG](who):next?`Sorry${who}, we got cut off for a moment. So, ${next[2]}`:`Sorry${who}, we got cut off for a moment. I have everything I need, so let's find your own corner of the village.`;
   const known=[ name!=='friend'&&`name: ${name}`, profile.vision&&`vision: ${profile.vision}`, profile.visionFollowUp&&`more on the vision: ${profile.visionFollowUp}`,
     profile.wish&&`missing today: ${profile.wish}`, profile.belief&&`belief: ${profile.belief}`, profile.kids&&`children: ${profile.kids}${profile.ages?` (${profile.ages})`:''}`,
     profile.familiesAnswer!==undefined&&`families: about ${profile.families}`, profile.privacyAnswered&&`commons: ${profile.privacy} out of 10 (1 = one big family)`,
     profile.spacesAnswered&&`spaces: ${profile.spaces.map(k=>SPACES[k]).join(', ')||'none yet'}`, profile.idea&&`their own idea: ${profile.idea}`,
     profile.food!==undefined&&`food quality: ${profile.food}/10`, profile.meat&&`eats meat: ${profile.meat}`, profile.meatOk&&`minds neighbours eating meat: ${profile.meatOk}` ].filter(Boolean);
   const shown=[stage.land&&'the land',profile.familiesAnswer!==undefined&&'the homes',stage.commons&&'the commons',profile.spacesAnswered&&'the shared spaces',profile.food!==undefined&&'the food forest'].filter(Boolean);
-  const context=`The call dropped and has just reconnected. You already greeted them again with: "${first}" Do not repeat questions they have answered. What you already know: ${known.join('; ')||'nothing yet'}.`+
+  const context=(back?`They chose to continue on the page for a while and have now come back to the call.`:`The call dropped and has just reconnected.`)+` You already greeted them again with: "${first}" Do not repeat questions they have answered. What you already know: ${known.join('; ')||'nothing yet'}.`+
     (shown.length?` Already on screen: ${shown.join(', ')}.`:'')+(next?` Continue from "${next[0]}" and follow your instructions from there.`:' Everything is covered: thank them in one sentence and call finish_conversation.')+(CALL_LANG!=='en'?' Keep speaking the language you were speaking before the line dropped.':'');
   return {first,context};
 }
-async function agentConversation(){
+async function agentConversation(resumeFirst=false){
   let Conversation;
   try{ ({Conversation}=await import('/vendor/elevenlabs-client.js')); }catch{ return false; }
   stopVoice(); stopListening(false); agentEndedBy='';
@@ -1140,7 +1173,7 @@ async function agentConversation(){
       if(muted){ try{ c.setMicMuted(true); }catch{} }
       return true;
     }
-    connect(false).then(ok=>{ if(!ok) finish('drop'); });
+    connect(resumeFirst).then(ok=>{ if(!ok) finish('drop'); });
   });
 }
 /* Keep the screen on during the walk, so the phone doesn't lock while Asara talks or listens.
@@ -1166,7 +1199,6 @@ async function run(){
   await say("Hello, I'm <b>Asara</b>.",200);
   await say("Most homes are bought. This village will be <b>imagined first</b>, by the families who will live in it.",500);
   await say("So before I show you anything, I want to listen.",400);
-  let live=false;
   if(aiAvailable||canListen()){
     const talk=canListen();
     if(talk&&agentAvailable) import('/vendor/elevenlabs-client.js').catch(()=>{});
@@ -1182,110 +1214,125 @@ async function run(){
       if(pick.v==='talk'){
         let micOk=true; try{ await pick.mic; }catch{ micOk=false; }
         if(!micOk) await say(`I can't reach your microphone, so let's write for now. You can tap the mic any time if you change your mind.`,300);
-        else{
-          if(agentAvailable){ if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; } live=await agentConversation(); }
-          if(live&&agentEndedBy==='drop') await say(`We lost the line, but nothing is lost: I remember everything you told me. Let's carry on right here, just keep talking.`,300);
-          else if(live&&agentEndedBy==='user') await say(`Of course. Let's carry on right here.`,200);
-          talkMode=true;
-          if(!live) await say(`Lovely. Just talk whenever you're ready, I'll know when you've finished.`,200);
-        } } }
-  }
-  /* Anything the live conversation didn't cover, Asara asks here, in the same order. */
-  if(!profile.vision){
-    await say(`If you could create the perfect place for your family to wake up every morning, what would it look like? What would a day feel like there?`);
-    profile.vision=await askText(talkMode?"Speak freely, I'm listening":'Dream freely. There are no wrong answers',{cta:'Share',max:800});
-    const th=heard(profile.vision);
-    await say(`“${esc(short(profile.vision,140))}”`,300);
-    const aiV=await askAsara('vision',profile.vision);
-    await say(aiV?esc(aiV.reply):(th.length?`I hear ${listJoin(th)}. Hold on to that: this whole village starts from visions like yours.`:`Thank you. I've kept your words exactly as you wrote them. This whole village starts from visions like yours.`),500);
-    if(aiV&&aiV.followUp){
-      profile.visionFollowUpQuestion=aiV.followUp;
-      await say(esc(aiV.followUp));
-      profile.visionFollowUp=await askText('Your answer',{optional:true});
-      if(profile.visionFollowUp){ const aiA=await askAsara('vision_followup',profile.visionFollowUp,{followUpQuestion:aiV.followUp}); await say(aiA?esc(aiA.reply):`Thank you. I'll remember that.`,300); }
-    }
-  }
-  if(profile.wish===undefined&&!live){
-    await say(`And what's missing from the life your family lives today?`);
-    profile.wish=await askText('e.g. Neighbours who feel like family',{optional:true});
-    if(profile.wish){ const th=heard(profile.vision), th2=heard(profile.wish).filter(x=>!th.includes(x)); const aiC=await askAsara('childhood',profile.wish);
-      await say(aiC?esc(aiC.reply):(th2.length?`${th2[0][0].toUpperCase()+th2[0].slice(1)}. I'll remember that. It's exactly what a village like this is for.`:`I'll remember that. It's often the small things that make a place home.`),400); }
-  }
-  if(name==='friend'){
-    await say(live?`Before we go on, what should I call you?`:`I've been listening without even asking your name. What should I call you?`);
-    name=(await askText('Your first name',{cta:'Continue'})).slice(0,30)||'friend';
-  }
-  const N=esc(name);
-  if(!profile.belief){
-    if(!live) await say(`${N}, here's what makes this village different: it isn't sold to whoever pays first. It grows around families who share a vision, and they don't just live in it. They <b>create</b> it.`,700);
-    await say(`So the heart of it, in one sentence: what do you believe in?`);
-    profile.belief=await askText('e.g. Kids should grow up barefoot, close to nature');
-    const aiB=await askAsara('belief',profile.belief);
-    await say(aiB?esc(aiB.reply):`That's the kind of sentence a village is built on. It's how families here find their tribe.`,300);
-  }
-  if(!profile.kids){
-    await say(`And who's coming with you? Do you have children?`);
-    profile.kids=await askChoice(KIDS_OPTS);
-  }
-  if(profile.kids!=='No children'&&!profile.ages){
-    await say(`How old are they?`);
-    profile.ages=await askText('e.g. 4 and 7');
-    await say(`I'll keep them in mind at every step: shade, safe paths, places to roam.`,400);
+        else{ talkMode=true; liveCall.want=agentAvailable; if(!liveCall.want) await say(`Lovely. Just talk whenever you're ready, I'll know when you've finished.`,200); }
+      } }
   }
 
-  /* ---------- 2. The land, shaped by their answers ---------- */
-  if(!stage.land){
-    await say(`Now let me show you where all of this could happen.`,300);
-    showLand();
-    await say(`Here's the land, in Nusa Dua: <b>${HA} hectares</b> inside a ${fmt(PARCEL.perimeter)}-metre boundary, with the main road along the south-west side.`,700);
-    showVillageZone();
-    await say(`The village would lease about a quarter of it, around <b>${fmt(VILLAGE_AREA)} m²</b> in the middle. Green-zone rules allow building on 19% of the whole parcel, about ${fmt(VILLAGE_BUILDABLE)} m², and all of that can be used inside the village. The rest stays green.`,800);
-  }
-  if(profile.familiesAnswer===undefined){
-    showVillageZone();
-    await say(`We first imagined 12 families, but that number is still open, and your view counts. How big is your tribe? How many families do you see in your ideal village?`);
-    const fam=await askChoice(['8 to 12, intimate','About 20','30 or more','Not sure yet']);
-    profile.familiesAnswer=fam; profile.families={'8 to 12, intimate':10,'About 20':20,'30 or more':30}[fam]||16;
-    showFamilies(profile.families);
-    await say(profile.families<=12?`Intimate. Everyone knows everyone, and the commons feels like a family table.`:profile.families>=30?`A lively village. More families also means the cost of the shared spaces is spread wider.`:fam==='Not sure yet'?`That's fair. Here's what about ${profile.families} homes would look like, so you can feel the space.`:`A lively middle: big enough for many friendships, small enough to know every name.`,1100);
-  }
-  if(!profile.privacyAnswered){
-    const first=!stage.commons; showCommons();
-    await say(first?`At the heart, a green commons all the families share. I've put your vision right here, because this is where it would start. You decide how it feels. Where are you on this scale?`:`How should the commons feel? Where are you on this scale?`);
-    const pv=await askScale('One big family','My own retreat',5); sizeCommons(pv);
-    await say(pv<=4?`Then the heart should be bigger. I've widened the commons.`:pv>=7?`Then I'll keep the commons intimate and leave more room for everyone's own space.`:`A bit of both. I'll keep the commons as it is.`,500);
-  }
-  showLabel('lb-hub',false);
-  if(!profile.spacesAnswered){
-    await say(`What would you love to find here? Choose freely. I'll build whatever you pick.`);
-    profile.spaces=await askMulti(SPACES,'Build these'); profile.spacesAnswered=true;
-    if(profile.idea===undefined){
-      await say(`And is there something you envision that isn't on the list? An outdoor cinema, a library, a tree house for the kids… anything at all.`);
-      profile.idea=await askText('Your idea for the village',{optional:true,cta:'Add it'});
-      if(profile.idea){ SPACES.custom=profile.idea; SPACE_SHORT.custom=short(profile.idea,24); profile.spaces.push('custom');
-        const aiI=await askAsara('idea',profile.idea);
-        await say(aiI?`${esc(aiI.reply)} I'm adding it to the commons.`:`I love that. I'm adding “${esc(short(profile.idea,60))}” to the commons, and it goes into your application as your idea.`,400); }
+  /* The personal part as steps. The live Asara agent takes them while the call is up; if it drops, the page
+     carries on with the same steps and keeps bringing the call back, which picks up at the next open step. */
+  const scripted={
+    async vision(){
+      await say(`If you could create the perfect place for your family to wake up every morning, what would it look like? What would a day feel like there?`);
+      const v=await askText(talkMode?"Speak freely, I'm listening":'Dream freely. There are no wrong answers',{cta:'Share',max:800}); if(v===TAKEOVER) return;
+      profile.vision=v; const th=heard(v);
+      await say(`“${esc(short(v,140))}”`,300);
+      const aiV=await askAsara('vision',v);
+      await say(aiV?esc(aiV.reply):(th.length?`I hear ${listJoin(th)}. Hold on to that: this whole village starts from visions like yours.`:`Thank you. I've kept your words exactly as you wrote them. This whole village starts from visions like yours.`),500);
+      if(aiV&&aiV.followUp){
+        await say(esc(aiV.followUp));
+        const f=await askText('Your answer',{optional:true}); if(f===TAKEOVER) return;
+        profile.visionFollowUpQuestion=aiV.followUp; profile.visionFollowUp=f;
+        if(f){ const aiA=await askAsara('vision_followup',f,{followUpQuestion:aiV.followUp}); await say(aiA?esc(aiA.reply):`Thank you. I'll remember that.`,300); }
+      }
+    },
+    async missing(){
+      await say(`And what's missing from the life your family lives today?`);
+      const w=await askText('e.g. Neighbours who feel like family',{optional:true}); if(w===TAKEOVER) return;
+      profile.wish=w;
+      if(w){ const th=heard(profile.vision||''), th2=heard(w).filter(x=>!th.includes(x)); const aiC=await askAsara('childhood',w);
+        await say(aiC?esc(aiC.reply):(th2.length?`${th2[0][0].toUpperCase()+th2[0].slice(1)}. I'll remember that. It's exactly what a village like this is for.`:`I'll remember that. It's often the small things that make a place home.`),400); }
+    },
+    async name(){
+      await say(`I've been listening without even asking your name. What should I call you?`);
+      const n=await askText('Your first name',{cta:'Continue'}); if(n===TAKEOVER) return;
+      name=n.slice(0,30)||'friend'; updateProgress();
+    },
+    async belief(){
+      await say(`${esc(name)}, here's what makes this village different: it isn't sold to whoever pays first. It grows around families who share a vision, and they don't just live in it. They <b>create</b> it.`,700);
+      await say(`So the heart of it, in one sentence: what do you believe in?`);
+      const b=await askText('e.g. Kids should grow up barefoot, close to nature'); if(b===TAKEOVER) return;
+      profile.belief=b; const aiB=await askAsara('belief',b);
+      await say(aiB?esc(aiB.reply):`That's the kind of sentence a village is built on. It's how families here find their tribe.`,300);
+    },
+    async children(){
+      await say(`And who's coming with you? Do you have children?`);
+      const k=await askChoice(KIDS_OPTS); if(k===TAKEOVER) return;
+      profile.kids=k;
+      if(k!=='No children'&&!profile.ages){
+        await say(`How old are they?`);
+        const a=await askText('e.g. 4 and 7'); if(a===TAKEOVER) return;
+        profile.ages=a; await say(`I'll keep them in mind at every step: shade, safe paths, places to roam.`,400);
+      }
+    },
+    async land(){
+      await say(`Now let me show you where all of this could happen.`,300);
+      showLand();
+      await say(`Here's the land, in Nusa Dua: <b>${HA} hectares</b> inside a ${fmt(PARCEL.perimeter)}-metre boundary, with the main road along the south-west side.`,700);
+      showVillageZone();
+      await say(`The village would lease about a quarter of it, around <b>${fmt(VILLAGE_AREA)} m²</b> in the middle. Green-zone rules allow building on 19% of the whole parcel, about ${fmt(VILLAGE_BUILDABLE)} m², and all of that can be used inside the village. The rest stays green.`,800);
+    },
+    async families(){
+      showVillageZone();
+      await say(`We first imagined 12 families, but that number is still open, and your view counts. How big is your tribe? How many families do you see in your ideal village?`);
+      const fam=await askChoice(['8 to 12, intimate','About 20','30 or more','Not sure yet']); if(fam===TAKEOVER) return;
+      profile.familiesAnswer=fam; profile.families={'8 to 12, intimate':10,'About 20':20,'30 or more':30}[fam]||16;
+      showFamilies(profile.families);
+      await say(profile.families<=12?`Intimate. Everyone knows everyone, and the commons feels like a family table.`:profile.families>=30?`A lively village. More families also means the cost of the shared spaces is spread wider.`:fam==='Not sure yet'?`That's fair. Here's what about ${profile.families} homes would look like, so you can feel the space.`:`A lively middle: big enough for many friendships, small enough to know every name.`,1100);
+    },
+    async commons(){
+      const first=!stage.commons; showCommons();
+      await say(first?`At the heart, a green commons all the families share. I've put your vision right here, because this is where it would start. You decide how it feels. Where are you on this scale?`:`How should the commons feel? Where are you on this scale?`);
+      const pv=await askScale('One big family','My own retreat',5); if(pv===TAKEOVER) return;
+      sizeCommons(pv);
+      await say(pv<=4?`Then the heart should be bigger. I've widened the commons.`:pv>=7?`Then I'll keep the commons intimate and leave more room for everyone's own space.`:`A bit of both. I'll keep the commons as it is.`,500);
+    },
+    async spaces(){
+      showLabel('lb-hub',false);
+      await say(`What would you love to find here? Choose freely. I'll build whatever you pick.`);
+      const sp=await askMulti(SPACES,'Build these'); if(sp===TAKEOVER) return;
+      profile.spaces=sp; profile.spacesAnswered=true; buildSpaces(sp);
+      if(profile.idea===undefined){
+        await say(`And is there something you envision that isn't on the list? An outdoor cinema, a library, a tree house for the kids… anything at all.`);
+        const idea=await askText('Your idea for the village',{optional:true,cta:'Add it'}); if(idea===TAKEOVER) return;
+        profile.idea=idea;
+        if(idea){ applyAnswer('idea',idea); const aiI=await askAsara('idea',idea);
+          await say(aiI?`${esc(aiI.reply)} I'm adding it to the commons.`:`I love that. I'm adding “${esc(short(idea,60))}” to the commons, and it goes into your application as your idea.`,400); }
+      }
+      await say(profile.spaces.length?`There ${profile.spaces.length===1?'it is':'they are'}. See how fast a blank page fills up?`:`That's fine. The families will dream these up together.`,700);
+    },
+    async food(){
+      await say(`Around the commons, there's room for food. How important is <b>food quality</b> to you?`);
+      const f=await askScale('Not much','Everything',7); if(f===TAKEOVER) return;
+      profile.food=f; plantFood(f);
+      await say(f>=8?`Then let's plant. That's a food forest around the commons, one of the first ideas on the table.`:f<=4?`A few trees, then. Not everyone needs to be a gardener.`:`A healthy middle: a good garden, without the obsession.`,400);
+    },
+    async meat(){ await say(`Do you eat meat?`); const m=await askChoice(MEAT_OPTS); if(m===TAKEOVER) return; profile.meat=m; },
+    async meat_ok(){
+      await say(`And would you mind if your neighbours do?`);
+      const m=await askChoice(MEATOK_OPTS); if(m===TAKEOVER) return;
+      profile.meatOk=m;
+      await say(`Thank you for being honest. A tribe works when people agree on the small things too, like what's cooked in a shared kitchen, so it helps to know this early.`,400);
+    },
+  };
+  let calls=0; liveCall.inPersonal=true;
+  while(true){
+    const next=RESUME_STEPS.find(([,known])=>!known());
+    if(!next) break;
+    if(liveCall.want&&liveCall.due){
+      liveCall.due=false;
+      const had=calls>0; calls++;
+      if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
+      const ok=await agentConversation(had||RESUME_STEPS.some(([,known])=>known()));
+      if(agentEndedBy==='user'){ liveCall.want=false; liveCall.offerReturn(); await say(`Of course. Let's carry on right here.`,200); }
+      else if(agentEndedBy==='drop'){ await say(ok?`We lost the line, but nothing is lost: I remember everything you told me. Let's carry on right here, and I'll bring our call back as soon as I can.`:`I can't reach our call just now, so let's carry on right here. I'll bring it back as soon as I can.`,300); liveCall.retry(); }
+      else if(agentEndedBy==='done'&&RESUME_STEPS.some(([,known])=>!known())) liveCall.want=false;
+      continue;
     }
-    buildSpaces(profile.spaces);
-    await say(profile.spaces.length?`There ${profile.spaces.length===1?'it is':'they are'}. See how fast a blank page fills up?`:`That's fine. The families will dream these up together.`,700);
-    if(!live&&profile.film===undefined){
-      await say(`While it takes shape, just for fun: is there a line from a film that feels like your family?`);
-      profile.film=await askText('A quote, or just the film',{optional:true});
-      if(profile.film){ const aiF=await askAsara('film',profile.film); await say(aiF?esc(aiF.reply):`Good choice. I'd watch that one together.`,200); }
-    }
+    await scripted[next[0]]();
   }
-  if(profile.food===undefined){
-    await say(`Around the commons, there's room for food. How important is <b>food quality</b> to you?`);
-    profile.food=await askScale('Not much','Everything',7);
-    plantFood(profile.food);
-    await say(profile.food>=8?`Then let's plant. That's a food forest around the commons, one of the first ideas on the table.`:profile.food<=4?`A few trees, then. Not everyone needs to be a gardener.`:`A healthy middle: a good garden, without the obsession.`,400);
-  }
-  if(profile.meat===undefined){ await say(`Do you eat meat?`); profile.meat=await askChoice(MEAT_OPTS); }
-  if(profile.meatOk===undefined){
-    await say(`And would you mind if your neighbours do?`);
-    profile.meatOk=await askChoice(MEATOK_OPTS);
-    await say(`Thank you for being honest. A tribe works when people agree on the small things too, like what's cooked in a shared kitchen, so it helps to know this early.`,400);
-  }
+  liveCall.stop(); liveCall.inPersonal=false;
+  if(!stage.land){ showLand(); showVillageZone(); }
+  const N=esc(name);
 
   /* ---------- 3. Your home ---------- */
   showLabel('lb-vision',false);
