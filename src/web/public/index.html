@@ -1027,9 +1027,9 @@ function applyAnswer(field,value){
    heard enough (finish_conversation), when the person ends it, or after 12 minutes. Resolves true if a call took place. */
 let agentAvailable=false;
 async function agentConversation(){
-  let Conversation, signedUrl;
+  let Conversation, signedUrl, voiceId=null;
   try{ ({Conversation}=await import('/vendor/elevenlabs-client.js')); }catch{ return false; }
-  try{ const r=await fetch('/api/asara/agent-session',{method:'POST'}); if(!r.ok) return false; signedUrl=(await r.json()).signedUrl; }catch{ return false; }
+  try{ const r=await fetch('/api/asara/agent-session',{method:'POST'}); if(!r.ok) return false; ({signedUrl,voiceId}=await r.json()); }catch{ return false; }
   if(!signedUrl) return false;
   stopVoice(); stopListening(false);
   return new Promise(resolve=>{
@@ -1069,15 +1069,18 @@ async function agentConversation(){
       plant_food_forest:({importance})=>{ const n=clamp10(importance)||6; profile.food=n; plantFood(n); updateProgress(); return n>=8?'A food forest is growing around the commons.':n<=4?'A few fruit trees appeared around the commons.':'A good garden is growing around the commons.'; },
       finish_conversation:()=>{ ending=true; setTimeout(()=>finish(),9000); return 'ok, say one short warm closing sentence and stop'; },
     };
-    Conversation.startSession({
-      signedUrl, clientTools,
+    const start=(withVoice)=>Conversation.startSession({
+      signedUrl, clientTools, ...(withVoice&&voiceId?{overrides:{tts:{voiceId}}}:{}),
       dynamicVariables:{ village_hectares:HA, village_area_m2:VILLAGE_AREA, buildable_m2:VILLAGE_BUILDABLE },
       onConnect:({conversationId})=>{ connected=true; profile.agentConversationId=conversationId; status('Asara is listening.'); },
       onMessage:({message,source,role})=>addLine((role||source)==='user'?'me':'ai',message),
       onModeChange:({mode})=>{ $('gorb').classList.toggle('speaking',mode==='speaking'); if(!muted) status(mode==='speaking'?'Asara is speaking. You can interrupt her any time.':'Asara is listening.'); if(ending&&mode==='listening') setTimeout(()=>finish(),600); },
       onDisconnect:()=>finish(),
       onError:()=>{},
-    }).then(c=>{ conv=c; if(done) c.endSession().catch(()=>{}); }).catch(()=>finish());
+    });
+    // If the agent doesn't allow a voice override, start again with its own voice rather than fail.
+    start(true).catch(async()=>{ if(!voiceId) throw new Error('no session'); const r=await fetch('/api/asara/agent-session',{method:'POST'}); if(!r.ok) throw new Error('no session'); signedUrl=(await r.json()).signedUrl; return start(false); })
+      .then(c=>{ conv=c; if(done) c.endSession().catch(()=>{}); }).catch(()=>finish());
   });
 }
 async function run(){

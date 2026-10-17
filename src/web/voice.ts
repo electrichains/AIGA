@@ -158,7 +158,8 @@ export function voiceRouter(): Router {
         return;
       }
       res.setHeader('Cache-Control', 'no-store');
-      res.json({ signedUrl: data.signed_url });
+      // The page asks the agent to use the same voice as the rest of the walk.
+      res.json({ signedUrl: data.signed_url, voiceId: process.env.ELEVENLABS_VOICE_ID || null });
     } catch (err) {
       console.error('[Voice] agent session error', (err as Error).message);
       res.status(502).json({ error: 'Asara could not start the call' });
