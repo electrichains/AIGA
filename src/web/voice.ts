@@ -28,7 +28,7 @@ export function agentEnabled(): boolean {
 }
 
 const voiceId = () => process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL';
-const ttsModel = () => process.env.ELEVENLABS_MODEL || 'eleven_flash_v2_5';
+const ttsModel = () => process.env.ELEVENLABS_MODEL || 'eleven_flash_v2';
 const sttModel = () => process.env.ELEVENLABS_STT_MODEL || 'scribe_v1';
 
 /** Most of Asara's lines are scripted and identical for everyone, so recent clips are kept in memory. */

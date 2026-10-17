@@ -18,6 +18,7 @@ The live agent is `agent_6301m53pv4rnfj5t1s6qn3ycp36n` (published 17 October 202
 | Voice | Any default. With the Voice override on, the page then asks for the `ELEVENLABS_VOICE_ID` voice on Render, so Asara sounds the same before and after the call |
 | Language | English. Add other languages if you want her to switch when a family does |
 | LLM | Gemini Flash, for speed. Any fast model works |
+| TTS model | **Flash**, with expressive mode off and stability 0.5, similarity 0.75, speed 1. The rest of the walk uses `eleven_flash_v2` with the same settings, so Asara sounds identical before, during and after the call |
 | Max conversation duration | 720 seconds (Settings → Advanced). The page also hangs up at 12 minutes |
 | End conversation after silence | 60 seconds, so a call left open doesn't keep running |
 | Authentication | **On** (private agent). The page gets a signed URL from our server, so the API key never reaches the browser |

@@ -45,7 +45,7 @@ and can apply. The Cesium dashboard moved to `/dashboard`.
   `gemini-3.8-flash`) when set, otherwise OpenAI (`OPENAI_API_KEY`, `OPENAI_MODEL`).
   The page asks for consent first and falls back to scripted lines when AI is off or unavailable.
 - Asara's voice uses ElevenLabs when `ELEVENLABS_API_KEY` is set: she speaks her lines (`ELEVENLABS_VOICE_ID`,
-  `ELEVENLABS_MODEL`, default `eleven_flash_v2_5`) and families can answer by voice (`ELEVENLABS_STT_MODEL`, default `scribe_v1`).
+  `ELEVENLABS_MODEL`, default `eleven_flash_v2`, the same model as the agent) and families can answer by voice (`ELEVENLABS_STT_MODEL`, default `scribe_v1`).
 - With `ELEVENLABS_AGENT_ID` set, **Let's talk** starts a live call with the private Asara agent for the personal part
   of the walk (`POST /api/asara/agent-session` returns a signed URL). Agent setup: [docs/elevenlabs-asara-agent.md](docs/elevenlabs-asara-agent.md).
 - `POST /api/applications` — sends the application to **J-Mission** (`POST /api/people` through an `api` entry
