@@ -82,7 +82,8 @@ export function voiceRouter(): Router {
         body: JSON.stringify({
           text,
           model_id: ttsModel(),
-          voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.2, use_speaker_boost: true },
+          // The same settings as the Asara agent, so her voice sounds identical before, during and after a live call.
+          voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0, speed: 1 },
         }),
         signal: AbortSignal.timeout(15_000),
       });
