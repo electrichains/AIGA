@@ -1043,10 +1043,13 @@ const RESUME_STEPS=[
   ['meat',()=>profile.meat!==undefined,'do you eat meat?'],
   ['meat_ok',()=>profile.meatOk!==undefined,'would you mind if your neighbours do?'],
 ];
+/* Asara speaks English, Italian, German and Russian; the call starts in the phone's language, and she switches if they do. */
+const CALL_LANG=(()=>{ const l=String(navigator.language||'en').slice(0,2).toLowerCase(); return ['it','de','ru'].includes(l)?l:'en'; })();
+const RESUME_SORRY={ it:w=>`Scusa${w}, la linea è caduta per un momento. Riprendiamo da dove eravamo.`, de:w=>`Entschuldige${w}, die Verbindung war kurz weg. Machen wir da weiter, wo wir waren.`, ru:w=>`Извини${w}, связь ненадолго прервалась. Продолжим с того места, где остановились.` };
 function agentResume(){
   const next=RESUME_STEPS.find(([,known])=>!known());
   const who=name!=='friend'?`, ${name}`:'';
-  const first=next?`Sorry${who}, we got cut off for a moment. So, ${next[2]}`:`Sorry${who}, we got cut off for a moment. I have everything I need, so let's find your own corner of the village.`;
+  const first=CALL_LANG!=='en'?RESUME_SORRY[CALL_LANG](who):next?`Sorry${who}, we got cut off for a moment. So, ${next[2]}`:`Sorry${who}, we got cut off for a moment. I have everything I need, so let's find your own corner of the village.`;
   const known=[ name!=='friend'&&`name: ${name}`, profile.vision&&`vision: ${profile.vision}`, profile.visionFollowUp&&`more on the vision: ${profile.visionFollowUp}`,
     profile.wish&&`missing today: ${profile.wish}`, profile.belief&&`belief: ${profile.belief}`, profile.kids&&`children: ${profile.kids}${profile.ages?` (${profile.ages})`:''}`,
     profile.familiesAnswer!==undefined&&`families: about ${profile.families}`, profile.privacyAnswered&&`commons: ${profile.privacy} out of 10 (1 = one big family)`,
@@ -1054,7 +1057,7 @@ function agentResume(){
     profile.food!==undefined&&`food quality: ${profile.food}/10`, profile.meat&&`eats meat: ${profile.meat}`, profile.meatOk&&`minds neighbours eating meat: ${profile.meatOk}` ].filter(Boolean);
   const shown=[stage.land&&'the land',profile.familiesAnswer!==undefined&&'the homes',stage.commons&&'the commons',profile.spacesAnswered&&'the shared spaces',profile.food!==undefined&&'the food forest'].filter(Boolean);
   const context=`The call dropped and has just reconnected. You already greeted them again with: "${first}" Do not repeat questions they have answered. What you already know: ${known.join('; ')||'nothing yet'}.`+
-    (shown.length?` Already on screen: ${shown.join(', ')}.`:'')+(next?` Continue from "${next[0]}" and follow your instructions from there.`:' Everything is covered: thank them in one sentence and call finish_conversation.');
+    (shown.length?` Already on screen: ${shown.join(', ')}.`:'')+(next?` Continue from "${next[0]}" and follow your instructions from there.`:' Everything is covered: thank them in one sentence and call finish_conversation.')+(CALL_LANG!=='en'?' Keep speaking the language you were speaking before the line dropped.':'');
   return {first,context};
 }
 async function agentConversation(){
@@ -1115,7 +1118,8 @@ async function agentConversation(){
       const r=await fetch('/api/asara/agent-session',{method:'POST'}); if(!r.ok) throw new Error('no session');
       const {signedUrl,voiceId}=await r.json(); if(!signedUrl) throw new Error('no session');
       const my=++attempt;
-      const overrides={...(voiceId?{tts:{voiceId}}:{}),...(resume?{agent:{firstMessage:resume.first}}:{})};
+      const agent={...(CALL_LANG!=='en'?{language:CALL_LANG}:{}),...(resume?{firstMessage:resume.first}:{})};
+      const overrides={...(voiceId?{tts:{voiceId}}:{}),...(Object.keys(agent).length?{agent}:{})};
       return Conversation.startSession({
         signedUrl, clientTools, ...(withOverrides&&Object.keys(overrides).length?{overrides}:{}),
         onConnect:({conversationId})=>{ if(my!==attempt) return; everConnected=true; ids.push(conversationId); profile.agentConversationId=ids.join(',').slice(0,80); status('Asara is listening.'); },
