@@ -128,6 +128,11 @@ describe('Applications to J-Mission', () => {
     assert.match(note, /Where they work: East Bali/);
   });
 
+  test('a home on a concept land names its place', () => {
+    const note = memoryNote(ApplicationInput.parse({ ...sample, profile: { ...sample.profile, place: 'payangan', placeName: 'Payangan' } }));
+    assert.match(note, /^Applied to an Asara village in Payangan \(concept land\) through Asara\./);
+  });
+
   test('the memory note carries the vision and the sketch', () => {
     const note = memoryNote(ApplicationInput.parse(sample));
     assert.match(note, /Their ideal village: Kids running/);

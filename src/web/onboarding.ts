@@ -21,7 +21,7 @@ import { voiceEnabled, agentEnabled } from './voice.js';
 const VILLAGE_FACTS = `Asara facts (use only these, never invent others):
 - Asara is a place where people in Bali find others who share their vision of a village, and create it together.
 - A village can be anything people truly share: families, single mothers, pet lovers, vegetarians or raw vegans, artists, healers, elders… The people decide.
-- Land projects so far: Nusa Dua (a real 5.8-hectare parcel in South Bali, the furthest along), and projects in Amed, Tabanan, Payangan and Candidasa whose details are still being prepared.
+- Land projects so far: Nusa Dua (a real 5.8-hectare parcel in South Bali, the furthest along), and projects in Amed, Tabanan, Payangan, Candidasa and Nusa Penida whose real parcels are still being chosen. For those, people walk a concept land of about 5 hectares in 3D: an imagined parcel, never a real or promised one, with prices that use Nusa Dua's only as a reference.
 - People can also come with only an idea and find land together, or offer their own land to a group.
 - Asara introduces people as their tribe forms. Never invent how many people exist, who they are, or any demand.
 - For Nusa Dua only: building is allowed on 19% of the parcel; rough prices are land $800/m² (30-year lease) and building $1,600/m² including a share of the commons.
@@ -318,12 +318,16 @@ export function toCrmAttributes(app: Application): Record<string, string | numbe
 
 const supplierDetails = (d: Record<string, string>) => Object.entries(d).map(([k, v]) => `${k}: ${v}`).join(' | ');
 
+/** Nusa Dua is the real parcel; every other land is walked as a concept until its parcel is chosen. */
+const villageOf = (p: Application['profile']) =>
+  p.place && p.place !== 'nusa-dua' && p.placeName ? `an Asara village in ${p.placeName} (concept land)` : 'AIGA Village Nusa Dua';
+
 export function memoryNote(app: Application): string {
   const p = app.profile;
   return [
     {
-      lead: `Saved their home in AIGA Village Nusa Dua (not applied yet) through Asara.`,
-      application: `Applied to AIGA Village Nusa Dua through Asara.`,
+      lead: `Saved their home in ${villageOf(p)} (not applied yet) through Asara.`,
+      application: `Applied to ${villageOf(p)} through Asara.`,
       interest: `Joined the Asara circle${p.placeName ? ` for ${p.placeName}` : ''}: Asara will introduce them as their tribe forms.`,
       land_offer: `Offered land through Asara.`,
       supplier: `Offered to help build villages through the Asara supplier gate: ${p.supplier?.offers.join(', ') || 'see below'}.`,

@@ -237,7 +237,7 @@ input::placeholder{color:#6f786b}
 
 
 <section id="arrival">
-  <div class="eyebrow">Bali · Nusa Dua · Amed · Candidasa · Payangan · Tabanan · your own idea</div>
+  <div class="eyebrow">Bali · Nusa Dua · Amed · Candidasa · Payangan · Tabanan · Nusa Penida · your own idea</div>
   <h1>Envision your village. <em>Find your tribe.</em></h1>
   <div class="doors">
     <button class="btn" id="enter">Walk the land</button>
@@ -273,6 +273,7 @@ input::placeholder{color:#6f786b}
 <div class="label pin soon" id="mp-candidasa">Candidasa</div>
 <div class="label pin soon" id="mp-payangan">Payangan</div>
 <div class="label pin soon" id="mp-tabanan">Tabanan</div>
+<div class="label pin soon" id="mp-penida">Nusa Penida</div>
 <div class="label place" id="mp-Denpasar">Denpasar</div>
 <div class="label place" id="mp-Ubud">Ubud</div>
 <div class="label place" id="mp-Uluwatu">Uluwatu</div>
@@ -316,12 +317,23 @@ const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = id => document.getElementById(id);
 const canvas = $('scene');
 const ease = t => t<.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;
-const [CX,CZ] = PARCEL.centroid;
-const B = PARCEL.boundary;
+/* The land on screen: the real Nusa Dua parcel, or a concept parcel imagined for another place (see setLand). */
+let LAND = PARCEL, CX = PARCEL.centroid[0], CZ = PARCEL.centroid[1], B = PARCEL.boundary;
 const HUB_R = 22, R0 = 38, SETBACK = 8;
 
-/* Heights are not in the survey yet: keep the ground almost flat with a gentle texture. */
-const H = (x,z) => 0.5*Math.sin(x*0.031)*Math.cos(z*0.027) + 0.3*Math.sin(x*0.07+z*0.05);
+/* Heights: Nusa Dua isn't surveyed for height yet, so it stays almost flat with a gentle texture. Concept lands get
+   the character of their place beyond the village zone: rolling hills, rice terraces, or a coast falling to the sea. */
+let TERRAIN = {kind:'flat'};
+const sstep=(a,b,x)=>{ const t=Math.min(1,Math.max(0,(x-a)/(b-a))); return t*t*(3-2*t); };
+function H(x,z){
+  const b=0.5*Math.sin(x*0.031)*Math.cos(z*0.027) + 0.3*Math.sin(x*0.07+z*0.05), t=TERRAIN;
+  if(t.kind==='flat') return b;
+  const dx=x-CX, dz=z-CZ, g=sstep(80,170,Math.hypot(dx,dz));
+  if(t.kind==='hills') return b+g*(7*Math.sin(dx*.018+.6)*Math.cos(dz*.015)+(dx*t.dx+dz*t.dz)*.05);
+  if(t.kind==='terraces') return b*.4+g*Math.floor((dx*t.dx+dz*t.dz)*.075/1.4)*1.4;
+  const s=dx*t.dx+dz*t.dz-t.shore;   // coast: the land falls away past the shore line
+  return s>0?b-s*t.drop:b;
+}
 function inside(x,z,poly){ let c=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const [xi,zi]=poly[i],[xj,zj]=poly[j];
   if(((zi>z)!==(zj>z)) && (x<(xj-xi)*(z-zi)/(zj-zi)+xi)) c=!c; } return c; }
 function reach(a){ const dx=Math.cos(a),dz=Math.sin(a); let best=1e9;
@@ -357,13 +369,7 @@ for(const k in BALI.places){ const [x,z]=BALI.places[k]; mapLabels['mp-'+k]=new 
 /* ---------- ground ---------- */
 const uni = { uSun:{value:new THREE.Vector3(0.5,0.75,-0.2).normalize()}, uFog:{value:BG}, uWarm:{value:0}, uParcel:{value:0}, uC:{value:new THREE.Vector2(CX,CZ)}, uHub:{value:0}, uHubR:{value:22} };
 const SEG = MOBILE ? 110 : 220;
-const tg = new THREE.PlaneGeometry(900,900,SEG,SEG);
-tg.rotateX(-Math.PI/2); tg.translate(CX,0,CZ);
-const P = tg.attributes.position, ins = new Float32Array(P.count);
-for(let i=0;i<P.count;i++){ const x=P.getX(i), z=P.getZ(i); P.setY(i,H(x,z)); ins[i]=inside(x,z,B)?1:0; }
-tg.setAttribute('aIn',new THREE.BufferAttribute(ins,1));
-tg.computeVertexNormals();
-scene.add(new THREE.Mesh(tg,new THREE.ShaderMaterial({ uniforms:uni,
+const groundMat=new THREE.ShaderMaterial({ uniforms:uni,
   vertexShader:`attribute float aIn; varying float vIn; varying vec3 vPos; varying vec3 vN;
     void main(){ vIn=aIn; vPos=(modelMatrix*vec4(position,1.)).xyz; vN=normal; gl_Position=projectionMatrix*viewMatrix*vec4(vPos,1.); }`,
   fragmentShader:`uniform vec3 uSun; uniform vec3 uFog; uniform float uWarm; uniform float uParcel; uniform vec2 uC; uniform float uHub; uniform float uHubR;
@@ -383,32 +389,49 @@ scene.add(new THREE.Mesh(tg,new THREE.ShaderMaterial({ uniforms:uni,
       col=mix(col,uFog,smoothstep(700.,1500.,d));
       col=mix(col,uFog,smoothstep(300.,445.,max(abs(vPos.x-uC.x),abs(vPos.z-uC.y))));
       gl_FragColor=vec4(col,1.);
-    }`})));
+    }`});
+/* The sea beside a coastal concept land, fading out at the same edge as the ground. */
+const seaMat=new THREE.ShaderMaterial({ uniforms:uni,
+  vertexShader:`varying vec3 vPos; void main(){ vPos=(modelMatrix*vec4(position,1.)).xyz; gl_Position=projectionMatrix*viewMatrix*vec4(vPos,1.); }`,
+  fragmentShader:`uniform vec3 uFog; uniform vec2 uC; varying vec3 vPos;
+    void main(){ float t=.5+.5*sin(vPos.x*.05+vPos.z*.03)*sin(vPos.z*.04); vec3 c=mix(vec3(.06,.22,.26),vec3(.10,.30,.33),t);
+      c=mix(c,uFog,smoothstep(300.,445.,max(abs(vPos.x-uC.x),abs(vPos.z-uC.y)))); gl_FragColor=vec4(c,1.); }`});
 scene.add(new THREE.HemisphereLight(0xfff2d6,0x22352c,.75));
 const dl=new THREE.DirectionalLight(0xffe2b0,.8); dl.position.set(80,120,-30); scene.add(dl);
 
-/* ---------- boundary: line + light curtain ---------- */
+/* ---------- boundary (line + light curtain), roads, survey marks, structures: rebuilt for each land ---------- */
 const v3 = ([x,z],lift) => new THREE.Vector3(x,H(x,z)+lift,z);
-const bLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(B.map(p=>v3(p,.8))),new THREE.LineBasicMaterial({color:0xe9b96a,transparent:true,opacity:.5}));
-scene.add(bLine);
-const wall=[], wallUv=[];
-for(let i=0;i<B.length-1;i++){ const a=B[i],b=B[i+1], ya=H(...a), yb=H(...b), hgt=4;
-  wall.push(a[0],ya,a[1], b[0],yb,b[1], b[0],yb+hgt,b[1],  a[0],ya,a[1], b[0],yb+hgt,b[1], a[0],ya+hgt,a[1]);
-  wallUv.push(0,0,0,0,0,1, 0,0,0,1,0,1); }
-const wg=new THREE.BufferGeometry(); wg.setAttribute('position',new THREE.Float32BufferAttribute(wall,3)); wg.setAttribute('uv',new THREE.Float32BufferAttribute(wallUv,2));
 const wallU={uO:{value:0}};
-scene.add(new THREE.Mesh(wg,new THREE.ShaderMaterial({uniforms:wallU,transparent:true,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,
+const wallMat=new THREE.ShaderMaterial({uniforms:wallU,transparent:true,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,
   vertexShader:`varying vec2 vUv; void main(){vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-  fragmentShader:`uniform float uO; varying vec2 vUv; void main(){ gl_FragColor=vec4(vec3(.91,.72,.41),(1.-vUv.y)*.55*uO); }`})));
-
-/* ---------- roads, survey marks, structures ---------- */
+  fragmentShader:`uniform float uO; varying vec2 vUv; void main(){ gl_FragColor=vec4(vec3(.91,.72,.41),(1.-vUv.y)*.55*uO); }`});
 const roadMat=new THREE.LineBasicMaterial({color:0xd8c79e,transparent:true,opacity:.28});
-PARCEL.roads.forEach(r=>scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(r.map(p=>v3(p,.6))),roadMat)));
 const markMat=new THREE.LineBasicMaterial({color:0xece6d6,transparent:true,opacity:.18});
-PARCEL.marks.concat([PARCEL.annex]).forEach(r=>scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(r.map(p=>v3(p,.6))),markMat)));
 const builtMat=new THREE.MeshLambertMaterial({color:0xd9ccb0,transparent:true,opacity:.35});
-PARCEL.structures.forEach(s=>{ const sh=new THREE.Shape(s.map(([x,z])=>new THREE.Vector2(x,-z)));
-  const g=new THREE.ExtrudeGeometry(sh,{depth:3.5,bevelEnabled:false}); g.rotateX(-Math.PI/2); scene.add(new THREE.Mesh(g,builtMat)); });
+let landGroup=null, bLine=null;
+function buildLandScene(){
+  if(landGroup){ scene.remove(landGroup); landGroup.traverse(o=>o.geometry&&o.geometry.dispose()); }
+  landGroup=new THREE.Group(); scene.add(landGroup);
+  const tg=new THREE.PlaneGeometry(900,900,SEG,SEG);
+  tg.rotateX(-Math.PI/2); tg.translate(CX,0,CZ);
+  const P=tg.attributes.position, ins=new Float32Array(P.count);
+  for(let i=0;i<P.count;i++){ const x=P.getX(i), z=P.getZ(i); P.setY(i,H(x,z)); ins[i]=inside(x,z,B)?1:0; }
+  tg.setAttribute('aIn',new THREE.BufferAttribute(ins,1)); tg.computeVertexNormals();
+  landGroup.add(new THREE.Mesh(tg,groundMat));
+  if(TERRAIN.kind==='coast'){ const sea=new THREE.Mesh(new THREE.PlaneGeometry(900,900),seaMat); sea.rotation.x=-Math.PI/2; sea.position.set(CX,-1.6,CZ); landGroup.add(sea); }
+  bLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(B.map(p=>v3(p,.8))),new THREE.LineBasicMaterial({color:0xe9b96a,transparent:true,opacity:.5}));
+  landGroup.add(bLine);
+  const wall=[], wallUv=[];
+  for(let i=0;i<B.length-1;i++){ const a=B[i],b=B[i+1], ya=H(...a), yb=H(...b), hgt=4;
+    wall.push(a[0],ya,a[1], b[0],yb,b[1], b[0],yb+hgt,b[1],  a[0],ya,a[1], b[0],yb+hgt,b[1], a[0],ya+hgt,a[1]);
+    wallUv.push(0,0,0,0,0,1, 0,0,0,1,0,1); }
+  const wg=new THREE.BufferGeometry(); wg.setAttribute('position',new THREE.Float32BufferAttribute(wall,3)); wg.setAttribute('uv',new THREE.Float32BufferAttribute(wallUv,2));
+  landGroup.add(new THREE.Mesh(wg,wallMat));
+  LAND.roads.forEach(r=>landGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(r.map(p=>v3(p,.6))),roadMat)));
+  (LAND.marks||[]).concat(LAND.annex?[LAND.annex]:[]).forEach(r=>landGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(r.map(p=>v3(p,.6))),markMat)));
+  (LAND.structures||[]).forEach(st=>{ const sh=new THREE.Shape(st.map(([x,z])=>new THREE.Vector2(x,-z)));
+    const g=new THREE.ExtrudeGeometry(sh,{depth:3.5,bevelEnabled:false}); g.rotateX(-Math.PI/2); landGroup.add(new THREE.Mesh(g,builtMat)); });
+}
 
 /* ---------- commons ---------- */
 const hubRing=new THREE.Mesh(new THREE.RingGeometry(HUB_R-1.2,HUB_R,96),new THREE.MeshBasicMaterial({color:0xe9b96a,transparent:true,opacity:0,side:THREE.DoubleSide}));
@@ -440,6 +463,7 @@ const LANDS=[
   {key:'candidasa',name:'Candidasa',pos:[39.4,-34.5],line:'East coast · a quiet seaside village with a lagoon'},
   {key:'payangan',name:'Payangan',pos:[3.5,-45.2],line:'Central highlands · jungle hills above the Ayung river, north of Ubud'},
   {key:'tabanan',name:'Tabanan',pos:[-9,-31],line:'West of Ubud · rice terraces on green volcanic slopes'},
+  {key:'penida',name:'Nusa Penida',pos:[36.7,-10.1],line:'Island south-east of Bali · limestone cliffs, hidden beaches and clear water'},
 ];
 const LAND_BY=Object.fromEntries(LANDS.map(l=>[l.key,l]));
 const landLabel=k=>k==='nusa-dua'?'mp-pin':'mp-'+k;
@@ -451,7 +475,9 @@ const landPins=LANDS.filter(l=>!l.ready).map(l=>{
   mapLabels[landLabel(l.key)]=new THREE.Vector3(l.pos[0],0,l.pos[1]); return g; });
 
 /* At 8.8° south the sun passes close to overhead, a little north for half the year. */
-const arcPts=[]; for(let i=0;i<=60;i++){const a=Math.PI*i/60; arcPts.push(new THREE.Vector3(CX+300*Math.cos(a),15+270*Math.sin(a),CZ-35*Math.sin(a)));}
+let arcPts=[];
+const sunArc=()=>[...Array(61).keys()].map(i=>{ const a=Math.PI*i/60; return new THREE.Vector3(CX+300*Math.cos(a),15+270*Math.sin(a),CZ-35*Math.sin(a)); });
+arcPts=sunArc();
 const arc=new THREE.Line(new THREE.BufferGeometry().setFromPoints(arcPts),new THREE.LineDashedMaterial({color:0xe9b96a,dashSize:7,gapSize:7,transparent:true,opacity:0}));
 arc.computeLineDistances(); scene.add(arc);
 const sun=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('#fffbe8','rgba(255,200,110,.95)'),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,opacity:0}));
@@ -459,7 +485,7 @@ sun.scale.set(50,50,1); scene.add(sun); let sunT=0, sunRun=false;
 
 /* ---------- plots: 12 sectors from the commons out to the boundary, minus an 8 m setback ---------- */
 const FAM=['#e9b96a','#93c98d','#7cc6de','#d99a83','#b9a4d9','#c9c06a','#7fb3a2','#e0a4b8','#8fa8d9','#c7b08a','#a6d3c3','#d6c7a1'];
-const roadPts=PARCEL.roads.flat();
+let roadPts=PARCEL.roads.flat();
 const PLOTS=[...Array(12).keys()].map(i=>{
   const a0=(i*30+1.2)*Math.PI/180, a1=((i+1)*30-1.2)*Math.PI/180, am=(a0+a1)/2, nA=18;
   const outer=[]; for(let k=0;k<=nA;k++){ const a=a0+(a1-a0)*k/nA; outer.push([a,Math.max(R0+10,reach(a)-SETBACK)]); }
@@ -525,11 +551,8 @@ canvas.addEventListener('pointerup',()=>drag=null);
 canvas.addEventListener('wheel',e=>{cam.r=Math.min(900,Math.max(80,cam.r*(1+e.deltaY*.001)));},{passive:true});
 
 /* ---------- labels ---------- */
-const north=B.reduce((m,p)=>p[1]<m[1]?p:m,B[0]);
-const mainRoad=PARCEL.roads[4][Math.floor(PARCEL.roads[4].length/2)];
-const lane=PARCEL.roads[2][Math.floor(PARCEL.roads[2].length/2)];
-const built=PARCEL.structures[3][0];
-const labels={ 'lb-bound':v3(north,6), 'lb-road':v3(mainRoad,4), 'lb-lane':v3(lane,4), 'lb-built':v3(built,8), 'lb-hub':new THREE.Vector3(CX,6,CZ), 'lb-sun':arcPts[4], 'lb-you':null };
+let north=B[0];
+const labels={ 'lb-bound':null, 'lb-road':null, 'lb-lane':null, 'lb-built':null, 'lb-hub':null, 'lb-sun':null, 'lb-you':null };
 const showLabel=(id,on)=>$(id).classList.toggle('on',on);
 
 function resize(){
@@ -580,10 +603,10 @@ function showMapLands(){ if(phase!=='map') return; for(const id in mapLabels) sh
 function mapOverview(ms=2600){ stopMapMoves(); showMapLands(); return Promise.all([tween(mc,'tx',16,ms),tween(mc,'tz',-26,ms),tween(mc,'lr',Math.log(115),ms),tween(mc,'pitch',1.38,ms)]); }
 function flyTo(l){ if(phase!=='map') return; stopMapMoves(); for(const id in mapLabels) showLabel(id,id===landLabel(l.key));
   return Promise.all([tween(mc,'tx',l.pos[0],2600),tween(mc,'tz',l.pos[1]+3,2600),tween(mc,'lr',Math.log(38),2600)]); }
-async function dive(){
+async function dive(l=LANDS[0]){
   stopMapMoves();
-  for(const id in mapLabels) showLabel(id,id==='mp-pin');
-  await Promise.all([tween(mc,'tx',0,4200),tween(mc,'tz',0,4200),tween(mc,'lr',Math.log(2.6),4200),tween(mc,'pitch',1.42,4200)]);
+  for(const id in mapLabels) showLabel(id,id===landLabel(l.key));
+  await Promise.all([tween(mc,'tx',l.pos[0],4200),tween(mc,'tz',l.pos[1],4200),tween(mc,'lr',Math.log(2.6),4200),tween(mc,'pitch',1.42,4200)]);
   for(const id in mapLabels) showLabel(id,false); $('fade').classList.add('on'); await wait(750);
   phase='land'; $('fade').classList.remove('on');
 }
@@ -740,7 +763,7 @@ let offerSteps=null;   // set during the supplier gate, so the bar shows their o
 function updateProgress(){
   if(offerSteps) return offerProgress(offerSteps.done,offerSteps.total);
   // The steps that apply to their place, plus the home for Nusa Dua; before they choose a place, assume a typical path.
-  const st=stepsNow(), nd=profile.place==='nusa-dua';
+  const st=stepsNow(), nd=Boolean(LAND_BY[profile.place]);
   const home=nd?[profile.stylesLiked,profile.materials,profile.modules,profile.homeName!==undefined||undefined,profile.budget,profile.fit]:[];
   const done=st.filter(([,known])=>known()).length+home.filter(v=>v!==undefined).length;
   const total=st.length+(nd?6:profile.place?0:6);
@@ -785,12 +808,59 @@ function askScale(lo,hi,start=5){ return ask((box,done)=>{
 const SPACES={table:'A big table for everyone',kitchen:'Shared kitchen',studio:'Podcast & recording studio',gym:'Gym',yoga:'Yoga shala',cowork:'Co-working space',kids:"Kids' learning space",workshop:'Maker workshop',pool:'Swimming pool',sauna:'Sauna & ice bath'};
 const SPACE_SHORT={table:'The big table',kitchen:'Kitchen',studio:'Studio',gym:'Gym',yoga:'Yoga shala',cowork:'Co-working',kids:'Kids',workshop:'Workshop',pool:'Pool',sauna:'Sauna'};
 const WISH={morning:'Morning sun',quiet:'A quiet corner',access:'Easy road access',garden:'Room for a food garden',commons:'Close to the commons'};
-const HA=(PARCEL.area/10000).toFixed(1);
 /* Village economics (rough): the families lease about 27.5% of the parcel. The green-zone rule allows building on 19% of the
    whole parcel, and those rights are used inside the village area. A home's private land is twice its footprint.
    The build price per m² includes each family's share of building the commons. */
 const LAND_PER_M2=800, BUILD_PER_M2=1600, COVER=0.19, LEASED_SHARE=0.275;
-const VILLAGE_BUILDABLE=Math.round(PARCEL.area*COVER), VILLAGE_AREA=Math.round(PARCEL.area*LEASED_SHARE), VZ=Math.sqrt(VILLAGE_AREA/Math.PI);
+let HA, VILLAGE_BUILDABLE, VILLAGE_AREA, VZ;
+
+/* Concept lands. Until a place's real parcel is chosen, Asara imagines one of about 5 hectares there, with its own
+   shape, an access road and the character of the place, so people can walk their village anywhere. The page always
+   presents it as a concept; prices use Nusa Dua's as a reference. */
+const CONCEPT={
+  amed:     {seed:11, ha:5.2, road:2.6, terrain:{kind:'coast',dx:.92,dz:-.39,drop:.3}},
+  candidasa:{seed:23, ha:5.0, road:-1.9,terrain:{kind:'coast',dx:.3,dz:.95,drop:.2}},
+  payangan: {seed:37, ha:5.4, road:.4,  terrain:{kind:'hills',dx:-.6,dz:.8}},
+  tabanan:  {seed:41, ha:5.6, road:-2.2,terrain:{kind:'terraces',dx:.2,dz:.98}},
+  penida:   {seed:53, ha:5.1, road:-.9, terrain:{kind:'coast',dx:-.2,dz:.98,drop:1.1}},
+};
+const COMPASS=['east','south-east','south','south-west','west','north-west','north','north-east'];
+const compassOf=a=>COMPASS[((Math.round(a/(Math.PI/4))%8)+8)%8];
+function polyArea(pts){ let A=0; for(let k=0;k<pts.length;k++){ const [x0,z0]=pts[k],[x1,z1]=pts[(k+1)%pts.length]; A+=x0*z1-x1*z0; } return Math.abs(A)/2; }
+function conceptParcel(c){
+  let sd=c.seed; const rnd=()=>{ sd=(sd*16807)%2147483647; return sd/2147483647; };
+  const amp=[0,0,.11*rnd()+.04,.07*rnd()+.02,.04*rnd(),.025*rnd()], ph=amp.map(()=>rnd()*2*Math.PI), n=72;
+  const rad=a=>{ let r=1; for(let k=2;k<amp.length;k++) r+=amp[k]*Math.sin(k*a+ph[k]); return r; };
+  const unit=[...Array(n).keys()].map(i=>{ const a=i*2*Math.PI/n, r=rad(a); return [r*Math.cos(a),r*Math.sin(a)]; });
+  const R=Math.sqrt(c.ha*10000/polyArea(unit)), at=(a,off)=>{ const r=rad(a)*R+off; return [+(r*Math.cos(a)).toFixed(1),+(r*Math.sin(a)).toFixed(1)]; };
+  const boundary=unit.map(([x,z])=>[+(x*R).toFixed(1),+(z*R).toFixed(1)]); boundary.push(boundary[0]);
+  const along=[...Array(17).keys()].map(k=>at(c.road+(k-8)*.075,9)), spur=[along[0],at(c.road-.62,60),at(c.road-.75,160)];
+  let per=0; for(let k=0;k<boundary.length-1;k++) per+=Math.hypot(boundary[k+1][0]-boundary[k][0],boundary[k+1][1]-boundary[k][1]);
+  return {centroid:[0,0],boundary,roads:[along,spur],area:Math.round(polyArea(boundary.slice(0,-1))),perimeter:Math.round(per),
+    roadLabel:along[8],roadSide:compassOf(c.road),concept:true};
+}
+const isConcept=()=>Boolean(LAND.concept);
+const landName=()=>isConcept()?(LAND_BY[profile.place]||{}).name||'Bali':'Nusa Dua';
+/* Puts a place's land on screen (built while the map is still showing, before the dive). */
+function setLand(key){
+  const c=CONCEPT[key];
+  LAND=c?(c.parcel||(c.parcel=conceptParcel(c))):PARCEL;
+  [CX,CZ]=LAND.centroid; B=LAND.boundary;
+  TERRAIN=c?{...c.terrain}:{kind:'flat'};
+  if(TERRAIN.kind==='coast') TERRAIN.shore=Math.max(...B.map(([x,z])=>(x-CX)*TERRAIN.dx+(z-CZ)*TERRAIN.dz))+14;
+  HA=(LAND.area/10000).toFixed(1); VILLAGE_BUILDABLE=Math.round(LAND.area*COVER); VILLAGE_AREA=Math.round(LAND.area*LEASED_SHARE); VZ=Math.sqrt(VILLAGE_AREA/Math.PI);
+  roadPts=LAND.roads.flat();
+  uni.uC.value.set(CX,CZ); buildLandScene();
+  hubRing.position.set(CX,H(CX,CZ)+1.2,CZ); orb.position.set(CX,-10,CZ); orbTarget.set(CX,20,CZ); cam.tx=CX; cam.tz=CZ;
+  arcPts=sunArc(); arc.geometry.setFromPoints(arcPts); arc.computeLineDistances();
+  north=B.reduce((m,p)=>p[1]<m[1]?p:m,B[0]);
+  const road=LAND.roadLabel||PARCEL.roads[4][Math.floor(PARCEL.roads[4].length/2)];
+  Object.assign(labels,{'lb-bound':v3(north,6),'lb-road':v3(road,4),'lb-hub':new THREE.Vector3(CX,6,CZ),'lb-sun':arcPts[4],
+    'lb-lane':LAND===PARCEL?v3(PARCEL.roads[2][Math.floor(PARCEL.roads[2].length/2)],4):null,'lb-built':LAND===PARCEL?v3(PARCEL.structures[3][0],8):null});
+  $('lb-bound').textContent=`${isConcept()?'Concept boundary':'Boundary'} · ${fmt(LAND.perimeter)} m`;
+  $('lb-road').textContent=isConcept()?'Access road':'Main road';
+}
+setLand('nusa-dua');
 
 /* Modular homes: every room is a 6 m deep module; modules join end to end in a row (up to 30 m),
    and extra rooms form a wing at a right angle. Single storey. Price stays all-in per m². */
@@ -1135,7 +1205,7 @@ const STEP_DEFS={
 };
 function stepsNow(){
   const p=profile.place, base=['vision','missing','name','belief','calling','contribution','children','invest','place'];
-  const more=p==='nusa-dua'?['land','families','commons','spaces','food','meat','meat_ok']
+  const more=LAND_BY[p]?['land','families','commons','spaces','food','meat','meat_ok']
     :p==='offer'?['offer','families']
     :p?[...(p==='anywhere'?['wishes']:[]),'families','commons','spaces','food','meat','meat_ok']:[];
   return [...base,...more].map(k=>[k,...STEP_DEFS[k]]);
@@ -1155,17 +1225,17 @@ function budgetLine(range){
 const PLACE_NAMES={anywhere:'Anywhere in Bali',offer:'Their own land',unsure:'Not decided yet'};
 const on3D=()=>phase==='land';
 const landReady=()=>new Promise(r=>{ if(on3D()) return r(); const t=setInterval(()=>{ if(on3D()){ clearInterval(t); r(); } },200); setTimeout(()=>{ clearInterval(t); r(); },12000); });
-async function enterNusaDua(){
+/* Every land on the map can be walked in 3D: Nusa Dua's real parcel, or a concept land for the others. */
+async function enterLand(key){
   if(phase!=='map') return;
-  await dive(); tween(stars.material,'opacity',0,2500); idleSpin=0.00003;
+  setLand(key); await dive(LAND_BY[key]); tween(stars.material,'opacity',0,2500); idleSpin=0.00003;
   orb.material.opacity=1; orbTarget.set(CX,24,CZ); resize();
   await camTo({r:430,pitch:.8,yaw:.55},RM?0:3600);
 }
 function choosePlace(key){
   const l=LAND_BY[key];
   profile.place=key; profile.placeName=l?l.name:PLACE_NAMES[key]||key; updateProgress();
-  if(key==='nusa-dua') return enterNusaDua();
-  if(l) return flyTo(l);
+  if(l) return enterLand(key);
   return mapOverview();
 }
 /* Asara speaks English, Italian, German and Russian; the call starts in the phone's language, and she switches if they do. */
@@ -1232,15 +1302,17 @@ async function agentConversation(resumeFirst=false){
     }
     const clientTools={
       save_answer:({field,value})=>applyAnswer(field,value),
-      show_place:({place})=>{ const key=String(place||'').toLowerCase().replace(/\s+/g,'-').replace('candi-dasa','candidasa');
+      show_place:({place})=>{ const key=String(place||'').toLowerCase().replace(/\s+/g,'-').replace('candi-dasa','candidasa').replace('nusa-penida','penida');
         const k=LAND_BY[key]||PLACE_NAMES[key]?key:'unsure';
-        if(k==='nusa-dua'){ choosePlace(k); return landReady().then(()=>'Nusa Dua is on screen: the real land in 3D. Continue with show_land.'); }
+        if(LAND_BY[k]){ choosePlace(k); return landReady().then(()=>LAND_BY[k].ready?'Nusa Dua is on screen: the real land in 3D. Continue with show_land.'
+          :`${LAND_BY[k].name} is on screen in 3D: a concept land of about ${HA} hectares, imagined so they can walk their village until the real parcel is chosen. Say it is a concept, then continue with show_land.`); }
         choosePlace(k);
-        if(LAND_BY[k]) return `The map shows ${LAND_BY[k].name}: ${LAND_BY[k].line}. Its details are still being prepared, so don't describe more. Continue with the village questions.`;
         if(k==='offer') return 'Noted: they want to offer their own land. Thank them; the page will ask about the land after the call. Call finish_conversation.';
         if(k==='anywhere') return 'Noted: anywhere in Bali. Ask what the land should feel like and save it as wishes, then continue.';
         return 'Noted: not decided yet. Their vision is enough to start; continue with the village questions.'; },
-      show_land:()=>{ if(!on3D()) return 'The land view is only for Nusa Dua; skip this.'; showLand(); setTimeout(showVillageZone,2600); return `The land is on screen: ${HA} hectares in Nusa Dua with a ${fmt(PARCEL.perimeter)}-metre boundary and the main road on the south-west side. The village zone in the middle (about ${fmt(VILLAGE_AREA)} m²) is highlighted, and the green land around it stays green.`; },
+      show_land:()=>{ if(!on3D()) return 'The land view needs a place first; call show_place.'; showLand(); setTimeout(showVillageZone,2600);
+        return isConcept()?`A concept land in ${landName()} is on screen: about ${HA} hectares with an access road on the ${LAND.roadSide} side, imagined until the real parcel is chosen. The village zone in the middle (about ${fmt(VILLAGE_AREA)} m²) is highlighted, and the land around it stays green.`
+          :`The land is on screen: ${HA} hectares in Nusa Dua with a ${fmt(PARCEL.perimeter)}-metre boundary and the main road on the south-west side. The village zone in the middle (about ${fmt(VILLAGE_AREA)} m²) is highlighted, and the green land around it stays green.`; },
       show_families:({count})=>{ const n=Math.max(4,Math.min(60,Math.round(Number(count)||16))); profile.families=n; profile.familiesAnswer=`About ${n} (said in conversation)`; updateProgress(); if(!on3D()) return `Noted: about ${n} households.`; showFamilies(n); return `Showing about ${n} homes as glowing points inside the village zone.`; },
       show_commons:()=>{ if(!on3D()) return 'Noted.'; showCommons(); return `The green commons at the heart of the village is on screen${profile.vision?', with their vision written over it':''}.`; },
       size_commons:({privacy})=>{ const n=clamp10(privacy)||5; if(!on3D()){ profile.privacy=n; profile.privacyAnswered=true; updateProgress(); return `Noted: ${n} out of 10.`; } sizeCommons(n); updateProgress(); return n<=4?'The commons grew bigger.':n>=7?'The commons is smaller and more intimate, leaving more private space.':'The commons stays a balanced size.'; },
@@ -1373,9 +1445,9 @@ async function run(){
       const l=LANDS.find(x=>pick.startsWith(x.name));
       const key=l?l.key:pick.startsWith('Anywhere')?'anywhere':pick.startsWith('I have')?'offer':'unsure';
       if(key==='nusa-dua'){ await say(`Nusa Dua is the furthest along: a real ${HA}-hectare parcel. Let me take you there.`,300); await choosePlace(key); return; }
+      if(l){ await say(`<b>${l.name}</b>: ${esc(l.line)}. Its real land is still being chosen, so I've imagined one for you there: a <b>concept land</b> of about ${CONCEPT[key].ha} hectares, so you can walk your village. Let me take you there.`,300); await choosePlace(key); return; }
       choosePlace(key);
-      if(l) await say(`<b>${l.name}</b>: ${esc(l.line)}. We're still preparing its details, so I won't invent any. What matters now is the village you'd create there.`,500);
-      else if(key==='offer') await say(`How generous. Land is where a shared dream becomes real. I'll ask a few things about it.`,400);
+      if(key==='offer') await say(`How generous. Land is where a shared dream becomes real. I'll ask a few things about it.`,400);
       else if(key==='anywhere') await say(`Then let's find it together. Tell me what the land should feel like, and I'll keep it in mind as people and places come together.`,400);
       else await say(`That's perfectly fine. Your vision is enough to start: the place can come later, with the people.`,400);
     },
@@ -1419,13 +1491,19 @@ async function run(){
     async land(){
       await say(`Now let me show you where all of this could happen.`,300);
       showLand();
+      if(isConcept()){
+        await say(`Here's a concept land in ${landName()}: <b>about ${HA} hectares</b> inside a ${fmt(LAND.perimeter)}-metre boundary, with an access road along the ${LAND.roadSide} side. It's imagined, so you can feel your village. The real land will be chosen with the people who share it.`,700);
+        showVillageZone();
+        await say(`The village would sit in the middle, around <b>${fmt(VILLAGE_AREA)} m²</b>, building on about ${fmt(VILLAGE_BUILDABLE)} m², the same share as our Nusa Dua parcel. The rest stays green.`,800);
+        return;
+      }
       await say(`Here's the land, in Nusa Dua: <b>${HA} hectares</b> inside a ${fmt(PARCEL.perimeter)}-metre boundary, with the main road along the south-west side.`,700);
       showVillageZone();
       await say(`The village would lease about a quarter of it, around <b>${fmt(VILLAGE_AREA)} m²</b> in the middle. Green-zone rules allow building on 19% of the whole parcel, about ${fmt(VILLAGE_BUILDABLE)} m², and all of that can be used inside the village. The rest stays green.`,800);
     },
     async families(){
       if(on3D()) showVillageZone();
-      await say(on3D()?`We first imagined 12 families, but that number is still open, and your view counts. How big is your tribe? How many families do you see in your ideal village?`
+      await say(on3D()?`${isConcept()?'':'We first imagined 12 families, but that number is still open, and your view counts. '}How big is your tribe? How many families do you see in your ideal village?`
         :profile.place==='offer'?`How many households could your land welcome, in your eyes?`:`How big is your tribe? How many households do you see in your village?`);
       const fam=await askChoice(['8 to 12, intimate','About 20','30 or more','Not sure yet']); if(fam===TAKEOVER) return;
       profile.familiesAnswer=fam; profile.families={'8 to 12, intimate':10,'About 20':20,'30 or more':30}[fam]||16;
@@ -1493,7 +1571,7 @@ async function run(){
   }
   liveCall.stop(); liveCall.inPersonal=false;
   const N=esc(name);
-  if(profile.place!=='nusa-dua'){ await closingCircle(N); return; }
+  if(!LAND_BY[profile.place]){ await closingCircle(N); return; }
   if(!stage.land){ showLand(); showVillageZone(); }
 
   /* ---------- 3. Your home ---------- */
@@ -1611,7 +1689,7 @@ async function run(){
 
   let budget=0, first=true;
   while(true){
-    await say(first?`Beautiful. With its land and your share of the commons, this home comes to roughly <b>$${fmt(P.total)}</b>. Now it's entirely your call: what budget feels comfortable for you?`:`Of course. What budget would you like to try?`);
+    await say(first?`Beautiful. With its land and your share of the commons, this home comes to roughly <b>$${fmt(P.total)}</b>.${isConcept()?` That uses Nusa Dua's prices as a reference: ${esc(landName())}'s will be set once its real land is chosen.`:''} Now it's entirely your call: what budget feels comfortable for you?`:`Of course. What budget would you like to try?`);
     budget=await askBudget(); profile.budget=budget;
     const breakdown=p=>`<dl class="est"><dt>Private land, 30-year lease · ${fmt(p.land)} m²</dt><dd>$${fmt(p.landCost)}</dd><dt>Home · ${fmt(p.foot)} m², commons share included</dt><dd>$${fmt(p.build)}</dd><dt class="tot">Rough total</dt><dd class="tot">$${fmt(p.total)}</dd></dl>`;
     let next;
@@ -1648,7 +1726,7 @@ async function run(){
   homeSpots(profile.families-1,[fx,fz,34]).forEach(([x,z,a],j)=>setTimeout(()=>{ const c=CONFIGS[1+(j%3)], ms=[...c.row,...c.wing], p=priceOf(ms);
     const home=buildHome(x,z,a,ms,c.wing.length,0x8e9a86,.7,false); home.objs.forEach(o=>grow(o,1000));
     const w=home.U+4, m=rectPlot(x,z,w,a,FAM[j%FAM.length],Math.max(home.V+4,p.land/w)); tween(m.grp.position,'y',0,1400); tween(m.fill.material,'opacity',.22,1400); tween(m.line.material,'opacity',.65,1400); },RM?0:j*160));
-  await say(`Now picture the ${profile.families-1} other families you imagined, each adding their own answers to this page. All the homes and shared buildings fit within the ${fmt(VILLAGE_BUILDABLE)} m² the law allows, and the green heart stays open.`,900);
+  await say(`Now picture the ${profile.families-1} other families you imagined, each adding their own answers to this page. All the homes and shared buildings fit within ${isConcept()?`about ${fmt(VILLAGE_BUILDABLE)} m²`:`the ${fmt(VILLAGE_BUILDABLE)} m² the law allows`}, and the green heart stays open.`,900);
   await say(`When two wishes collide, I don't pick a winner. I show the families the options and the trade-offs, and they decide together.`,600);
   showLabel('lb-vision',true);
   await say(`You told me: “${esc(short(profile.vision,110))}” The co-design is where that becomes real, with a tribe of families chosen because they share it.`,800);
@@ -1663,13 +1741,14 @@ async function run(){
   if(profile.fit!=='Not really') await say(`So, ${N}: places are limited, and the families chosen first will shape the village with us, even how many families it holds. The founder personally reviews every application and invites the families who fit to meet. If this already feels like your village, now is the moment.`,700);
   const j=await say(`Here's the journey from here:`,200);
   const ul=document.createElement('ul'); ul.className='journey';
-  ul.innerHTML=`<li class="now"><b>Apply</b>You're here. Your answers and sketch join your application.</li><li><b>Selection</b>The founder meets shortlisted families in person.</li><li><b>Co-design</b>The founding families shape the village with me, week by week.</li><li><b>Vote</b>Every family approves the final layout.</li><li><b>Build</b>The village takes form on this land.</li>`;
+  ul.innerHTML=`<li class="now"><b>Apply</b>You're here. Your answers and sketch join your application.</li><li><b>Selection</b>The founder meets shortlisted families in person.</li><li><b>Co-design</b>The founding families shape the village with me, week by week.</li><li><b>Vote</b>Every family approves the final layout.</li><li><b>Build</b>The village takes form ${isConcept()?'on the land the families choose':'on this land'}.</li>`;
   j.appendChild(ul); log.scrollTop=log.scrollHeight;
   const openCard=()=>{
     idleSpin=0; renderer.render(scene,camera);
     $('card-img').src=renderer.domElement.toDataURL('image/jpeg',.85);
     $('card-style').innerHTML=`<div class="thumb">${styleFace(sty)}</div><div><span>My style</span><b>${sty.name}</b></div>`; $('card-style').hidden=false;
-    $('card-title').textContent=profile.homeName?`${profile.homeName} · ${name}'s home in AIGA Village`:`${name}'s place in AIGA Village`;
+    const village=isConcept()?`Asara ${landName()}`:'AIGA Village';
+    $('card-title').textContent=profile.homeName?`${profile.homeName} · ${name}'s home in ${village}`:`${name}'s place in ${village}`;
     $('card-quote').textContent=profile.belief?`“${profile.belief}”`:''; $('card-quote').hidden=!profile.belief;
     $('card-vision').textContent=`My ideal village: ${profile.vision}`;
     const bits=[ profile.kids==='No children'?'No children':`${profile.kids} ${profile.kids==='1'?'child':'children'}${profile.ages?` (${profile.ages})`:''}`,
@@ -1718,7 +1797,7 @@ async function run(){
         const f=document.createElement('form'); f.className='apply-form'; f.noValidate=true;
         f.innerHTML=`<input type="email" id="apply-email" autocomplete="email" placeholder="Email" aria-label="Email">
           <input type="tel" id="apply-phone" autocomplete="tel" placeholder="WhatsApp number, with country code" aria-label="WhatsApp number">
-          <label class="check"><input type="checkbox" id="apply-consent"><span>${isApp?'I agree that AIGA Village keeps my answers and sketch and contacts me about my application.':'I agree that AIGA Village keeps my home and answers and contacts me about the village.'} I can ask for them to be deleted at any time.</span></label>
+          <label class="check"><input type="checkbox" id="apply-consent"><span>${isApp?`I agree that ${isConcept()?'Asara':'AIGA Village'} keeps my answers and sketch and contacts me about my application.`:`I agree that ${isConcept()?'Asara':'AIGA Village'} keeps my home and answers and contacts me about the village.`} I can ask for them to be deleted at any time.</span></label>
           <div class="hint" role="alert"></div>`;
         const go=button(isApp?'Send my application':'Save my home'); f.append(go);
         const err=f.querySelector('.hint');
@@ -1737,7 +1816,7 @@ async function run(){
     }
     if(!sent){ buttons(stageDone); return; }
     if(isApp){ stageDone='applied'; await say(`Thank you, ${N}. Your application is with the founder now, together with your vision and ${homeRef}. You'll hear from us by email or WhatsApp.`,300); }
-    else { stageDone='saved'; await say(`Saved. ${profile.homeName?esc(profile.homeName):'Your home'} is waiting for you, ${N}, and the AIGA team will be in touch. Whenever you're ready, you can apply from here.`,300); }
+    else { stageDone='saved'; await say(`Saved. ${profile.homeName?esc(profile.homeName):'Your home'} is waiting for you, ${N}, and the ${isConcept()?'Asara':'AIGA'} team will be in touch. Whenever you're ready, you can apply from here.`,300); }
     if(!shared){ shared=true; await shareAndSupport(N); }
     buttons(stageDone);
   };
