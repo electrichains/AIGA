@@ -91,13 +91,16 @@ describe('Applications to J-Mission', () => {
   });
 
   test('joining the circle carries the village type and place', () => {
-    const app = ApplicationInput.parse({ ...sample, stage: 'interest', plan: undefined, profile: { vision: 'A village for single mothers by the sea', villageType: 'Single mothers raising kids together', place: 'amed', placeName: 'Amed' } });
+    const app = ApplicationInput.parse({ ...sample, stage: 'interest', plan: undefined, profile: { vision: 'A village for single mothers by the sea', villageType: 'Single mothers raising kids together', place: 'amed', placeName: 'Amed', contributions: ['Teaching', 'A digital presence'], investRange: 'Not yet' } });
     const attrs = toCrmAttributes(app);
     assert.equal(attrs.aiga_village_type, 'Single mothers raising kids together');
     assert.equal(attrs.aiga_place, 'Amed');
     assert.equal(attrs.aiga_role, 'seeker');
     assert.ok(attrs.aiga_saved_at);
     assert.match(memoryNote(app), /Joined the Asara circle for Amed/);
+    assert.equal(attrs.aiga_contributions, 'Teaching, A digital presence');
+    assert.equal(attrs.aiga_invest_range, 'Not yet');
+    assert.match(memoryNote(app), /What they could bring: Teaching, A digital presence/);
   });
 
   test('a land offer is tagged as a land owner with its details', () => {

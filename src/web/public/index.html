@@ -1037,6 +1037,7 @@ function plantFood(level){
 }
 const KIDS_OPTS=['No children','1','2','3','4 or more'], MEAT_OPTS=['Yes','Sometimes','No, plant-based'], MEATOK_OPTS=['Not at all','A little','Yes, I would'];
 const clamp10=v=>{ const n=Math.round(Number(String(v).match(/\d+(\.\d+)?/)?.[0])); return n>=1&&n<=10?n:null; };
+function spaceKeysFrom(text,dict){ const keys=[]; for(const part of String(text).split(/,|;|\band\b/i).map(t=>t.trim()).filter(Boolean)){ let best=null,top=0; for(const [k,v] of Object.entries(dict)){ const sc=matchScore(part,v); if(sc>top){ top=sc; best=k; } } if(best&&!keys.includes(best)) keys.push(best); } return keys; }
 function spaceKeys(text){
   const keys=[]; const parts=String(text).split(/,|;|\band\b/i).map(t=>t.trim()).filter(Boolean);
   for(const part of parts){ let best=null, top=0; for(const [k,v] of Object.entries(SPACES)){ if(k==='custom') continue; const sc=matchScore(part,v); if(sc>top){ top=sc; best=k; } }
@@ -1060,6 +1061,8 @@ function applyAnswer(field,value){
     case 'meat_ok': profile.meatOk=bestOption(v,MEATOK_OPTS)||v.slice(0,60); break;
     case 'calling': profile.villageType=v.slice(0,500); break;
     case 'place': return 'Use show_place to set the place.';
+    case 'contribution': { const keys=spaceKeysFrom(v,CONTRIBUTE); profile.contributions=keys.length?keys.map(k=>CONTRIBUTE[k]):[]; profile.contributionNote=v.slice(0,500); break; }
+    case 'invest': { profile.investRange=bestOption(v,INVEST_OPTS.slice(1,6))||(/not|no |none|nothing|zero/i.test(v)?INVEST_OPTS[0]:v.slice(0,60)); updateProgress(); return budgetLine(profile.investRange).replace(/<[^>]+>/g,''); }
     case 'wishes': profile.placeWishes=v.split(/,|;|\band\b/i).map(t=>t.trim()).filter(Boolean).slice(0,12); break;
     default: return `unknown field ${field}`;
   }
@@ -1096,7 +1099,7 @@ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==
    Resolves true if a call took place; agentEndedBy says how it ended ('done', 'user' or 'drop'). */
 let agentAvailable=false, agentEndedBy='';
 const AGENT_FIRST="Lovely, I'm so glad. So tell me: if you could create the perfect place to wake up every morning, for you and the people you love, what would it look like? What would a day feel like there?";
-const AGENT_PROMPT=`You are Asara, an intelligence created to bring people into harmony with themselves, with each other and with nature. You are speaking out loud with someone who is imagining the village they want to live in, somewhere in Bali. They see a map of Bali next to you, and you can change what they see with your tools.
+const agentPrompt=()=>`You are Asara, an intelligence created to bring people into harmony with themselves, with each other and with nature. You are speaking out loud with someone who is imagining the village they want to live in, somewhere in Bali. They see a map of Bali next to you, and you can change what they see with your tools.
 
 Why you exist: people come to you with a vision of a village. Some dream of a village for families, others for single mothers, pet lovers, vegetarians or raw vegans, artists, healers, elders, or something no one has imagined yet. You help them put their vision into words, and you bring together people who share it, so they can create their village together on land in Bali. This is not a place to buy a house: groups form around shared values, choose or find their land together, design their village with you and vote.
 
@@ -1108,14 +1111,18 @@ How you speak:
 - Help them see themselves as a co-creator, not a buyer.
 - If they go off topic, be kind and brief, and bring it back to their vision.
 
+Your spirit: you guide with a spiritual heart. Invite them to dream the future they truly want, without limits. You always believe in them, and it is your nature to help them believe in themselves and find a way around any obstacle. Remind them, when it fits, that here a home is reached not only by buying it but by designing and contributing to it, and that a dream held with full belief, free of negative beliefs about themselves, tends to find its way: they have the power to build their vision. This is your faith in them, never a promise of money, land or a result.
+
 What to learn, in roughly this order. Call save_answer as soon as you learn each one, and keep the conversation flowing:
 1. vision: the perfect place to wake up every morning, and what a day feels like there. Ask one follow-up about a detail and save it as vision_detail.
 2. missing: what is missing from the life they live today.
 3. name: their first name. Ask it naturally, for example "I've been listening without even asking your name."
 4. belief: in one sentence, what they believe in.
 5. calling: what kind of village is calling them: who it is for, and what unites the people there. Be open to anything. Only offer examples if they hesitate.
-6. children and children_ages: who would come with them. It is fine if it is just them.
-7. place: where in Bali they feel drawn. The land projects are Nusa Dua (South Bali, a real 5.8-hectare parcel, the only one ready to explore in 3D), Amed, Candidasa, Payangan and Tabanan (their details are still being prepared; never invent any). They can also choose anywhere in Bali (you will help find land), offer their own land, or not know yet. Call show_place with one of: nusa-dua, amed, candidasa, payangan, tabanan, anywhere, offer, unsure.
+6. contribution: what they could bring to the village: skills or craft, construction, teaching, food or a restaurant, healing or wellness, a digital presence, organising or business, land, money to invest, or anything else. Honour every answer as a real contribution.
+7. children and children_ages: who would come with them. It is fine if it is just them.
+8. invest: gently, whether they already have money they would like to invest, and roughly how much. Not yet is a fully welcome answer. Save it, then say in one sentence what the tool returns about places and budget.
+9. place: where in Bali they feel drawn. The land projects are Nusa Dua (South Bali, a real 5.8-hectare parcel, the only one ready to explore in 3D), Amed, Candidasa, Payangan and Tabanan (their details are still being prepared; never invent any). They can also choose anywhere in Bali (you will help find land), offer their own land, or not know yet. Call show_place with one of: nusa-dua, amed, candidasa, payangan, tabanan, anywhere, offer, unsure.
 Then follow what show_place tells you:
 - nusa-dua: call show_land and describe it in one sentence; ask how many households they imagine (show_families); call show_commons and ask where they are between one big family (1) and their own retreat (10) (size_commons); what they would love to share (build_spaces) and their own idea (save as idea); how important food quality is from 1 to 10 (plant_food_forest); meat and meat_ok.
 - amed, candidasa, payangan, tabanan, anywhere or unsure: if anywhere, first ask what the land should feel like and save it as wishes. Then ask how many households they imagine (show_families), where they are between one big family (1) and their own retreat (10) (size_commons), what they would love to share (build_spaces) and their own idea (save as idea), food quality from 1 to 10 (plant_food_forest), meat and meat_ok.
@@ -1124,10 +1131,11 @@ Then thank them by name in one sentence and call finish_conversation. Do not tal
 
 Facts (only use these; never invent numbers, names or people):
 - Nusa Dua: about 5.8 hectares, with the main road along the south-west side. The village would lease about a quarter of it, around 15,885 square metres; green-zone rules allow building on 19% of the whole parcel, about 10,975 square metres. Rough prices, only if asked: land about 800 dollars per square metre on a 30-year lease, homes about 1,600 dollars per square metre including a share of the commons.
-- Amed, Candidasa, Payangan and Tabanan are land projects whose details are still being prepared.
+- The smallest Nusa Dua home, with its own land, starts around ${fmt(priceOf(['B2']).total)} dollars.
+- Amed, Candidasa, Payangan and Tabanan are land projects whose details, sizes and prices are still being prepared. Never suggest a price for them.
 - You do not know yet how many other people share a vision. Never claim numbers, names or demand. Say you will introduce them as their tribe forms.
 
-Never promise acceptance, land, a price, a timeline or anything legal. Never ask for an email, a phone number, money or documents in conversation; the page collects contact details later.`;
+Never promise acceptance, land, money, a price, a timeline or anything legal. Never ask for an email, a phone number, payments or documents in conversation; the page collects contact details later.`;
 /* Every question Asara asks in the personal part. Which ones apply depends on the place the person chooses:
    Nusa Dua walks the real land in 3D; the other places, "anywhere" and "not sure" stay on the map; land owners describe their land. */
 const STEP_DEFS={
@@ -1136,6 +1144,8 @@ const STEP_DEFS={
   name:[()=>name!=='friend','what should I call you?'],
   belief:[()=>profile.belief,'in one sentence, what do you believe in?'],
   calling:[()=>profile.villageType!==undefined,'what kind of village is calling you, and who is it for?'],
+  contribution:[()=>profile.contributions!==undefined,'what could you bring to the village?'],
+  invest:[()=>profile.investRange!==undefined,'do you already have money you would like to invest in your village? It is completely fine if not.'],
   children:[()=>profile.kids,"who would come with you?"],
   place:[()=>profile.place!==undefined,'where in Bali do you feel drawn to create it?'],
   wishes:[()=>profile.placeWishes!==undefined,'what should the land feel like?'],
@@ -1149,7 +1159,7 @@ const STEP_DEFS={
   meat_ok:[()=>profile.meatOk!==undefined,'would you mind if your neighbours do?'],
 };
 function stepsNow(){
-  const p=profile.place, base=['vision','missing','name','belief','calling','children','place'];
+  const p=profile.place, base=['vision','missing','name','belief','calling','contribution','children','invest','place'];
   const more=p==='nusa-dua'?['land','families','commons','spaces','food','meat','meat_ok']
     :p==='offer'?['offer','families']
     :p?[...(p==='anywhere'?['wishes']:[]),'families','commons','spaces','food','meat','meat_ok']:[];
@@ -1157,6 +1167,16 @@ function stepsNow(){
 }
 /* Where they want to create their village. Nusa Dua dives into the real land; the others fly the map there. */
 const PLACE_WISH={sea:'By the sea',mountains:'In the mountains',jungle:'In the jungle',rice:'Among rice fields',river:'Near a river',quiet:'Quiet and remote',town:'Close to a town',surf:'Near the surf'};
+const CONTRIBUTE={skills:'My skills or craft',build:'Construction or building',teach:'Teaching or education',food:'Food, a café or a restaurant',heal:'Healing or wellness',digital:'A digital presence or media',organise:'Organising or business',land:'Land',invest:'Money to invest'};
+const INVEST_OPTS=["Not yet, I'll contribute in other ways",'Under $50,000','$50,000 to $150,000','$150,000 to $400,000','$400,000 to $1M','Over $1M',"I'd rather not say"];
+const INVEST_TOP={'Under $50,000':50000,'$50,000 to $150,000':150000,'$150,000 to $400,000':400000,'$400,000 to $1M':1e6,'Over $1M':Infinity};
+/* Asara's suggestion after they share a budget. Only Nusa Dua has real prices yet; the other lands are never given invented ones. */
+function budgetLine(range){
+  const min=priceOf(['B2']).total, top=INVEST_TOP[range];
+  if(top===undefined) return `Then let's hold your dream first. Here a home can be designed and contributed to, not only bought, and what you bring counts. When a dream is held with full belief, a way tends to appear, and I'll be looking for it with you.`;
+  if(top>=min) return `With that, Nusa Dua is within reach: its smallest home, with its own land, starts around <b>$${fmt(min)}</b>. The other lands are still being prepared, and I'll keep your budget in mind as their details come in.`;
+  return `Nusa Dua's smallest home, with its land, starts around <b>$${fmt(min)}</b>, so let's see that as a horizon, not a wall. The other lands are still being prepared, and villages here can blend money with skills and work. I'll keep your vision and your budget in mind.`;
+}
 const PLACE_NAMES={anywhere:'Anywhere in Bali',offer:'Their own land',unsure:'Not decided yet'};
 const on3D=()=>phase==='land';
 const landReady=()=>new Promise(r=>{ if(on3D()) return r(); const t=setInterval(()=>{ if(on3D()){ clearInterval(t); r(); } },200); setTimeout(()=>{ clearInterval(t); r(); },12000); });
@@ -1258,7 +1278,7 @@ async function agentConversation(resumeFirst=false){
       const r=await fetch('/api/asara/agent-session',{method:'POST'}); if(!r.ok) throw new Error('no session');
       const {signedUrl,voiceId}=await r.json(); if(!signedUrl) throw new Error('no session');
       const my=++attempt;
-      const agent={prompt:{prompt:AGENT_PROMPT},...(CALL_LANG!=='en'?{language:CALL_LANG}:{}),...(resume?{firstMessage:resume.first}:CALL_LANG==='en'?{firstMessage:AGENT_FIRST}:{})};
+      const agent={prompt:{prompt:agentPrompt()},...(CALL_LANG!=='en'?{language:CALL_LANG}:{}),...(resume?{firstMessage:resume.first}:CALL_LANG==='en'?{firstMessage:AGENT_FIRST}:{})};
       const overrides={...(voiceId?{tts:{voiceId}}:{}),...(Object.keys(agent).length?{agent}:{})};
       return Conversation.startSession({
         signedUrl, clientTools, ...(withOverrides&&Object.keys(overrides).length?{overrides}:{}),
@@ -1396,6 +1416,23 @@ async function run(){
       const notes=await askText('Optional',{optional:true,max:600}); if(notes===TAKEOVER) return;
       profile.landOffer={region,size,terms,...(notes?{notes}:{})}; updateProgress();
       await say(`Thank you. I'll keep your land in mind for people whose vision fits it.`,300);
+    },
+    async contribution(){
+      await say(`In Asara, a home isn't only bought. It's designed and contributed to. What could you bring to the village? Choose any that feel true, or tell me in your own words.`);
+      const c=await askMulti(CONTRIBUTE,'This is what I bring'); if(c===TAKEOVER) return;
+      profile.contributions=c.map(k=>CONTRIBUTE[k]); updateProgress();
+      await say(`Anything else you'd love to offer? A restaurant you'd bring, a school you dream of teaching in…`);
+      const n=await askText('Optional',{optional:true,max:500}); if(n===TAKEOVER) return;
+      profile.contributionNote=n||undefined;
+      const said=[...profile.contributions,n].filter(Boolean).join(', ');
+      const ai=said?await askAsara('contribution',said):null;
+      await say(ai?esc(ai.reply):said?`That's a real gift to a village. Every village needs exactly that.`:`That's fine. Sometimes what we bring reveals itself along the way.`,400);
+    },
+    async invest(){
+      await say(`And money: do you already have some you'd like to invest in your village? It's completely fine if not. A dream you truly believe in matters more here than what's in the bank today.`);
+      const r=await askChoice(INVEST_OPTS); if(r===TAKEOVER) return;
+      profile.investRange=r; updateProgress();
+      await say(budgetLine(r),500);
     },
     async children(){
       await say(`And who would come with you? Do you have children?`);
@@ -1692,7 +1729,7 @@ async function run(){
         families:profile.families, familiesAnswer:profile.familiesAnswer, privacy:profile.privacy, spaces:profile.spaces.map(k=>SPACES[k]),
         idea:profile.idea||undefined, food:profile.food, meat:profile.meat, meatOk:profile.meatOk, material:sty.name, stylesLiked:profile.stylesLiked, stylesPassed:profile.stylesPassed,
         materials:profile.materials, homeType:profile.homeType, modules:profile.modules, wishes:[...wishes].map(w=>WISH[w]),
-        homeName:profile.homeName||undefined, builderEdits:profile.builderEdits||0, fit:profile.fit, villageType:profile.villageType, place:profile.place, placeName:profile.placeName, transcript:profile.transcript||undefined, agentConversationId:profile.agentConversationId||undefined,
+        homeName:profile.homeName||undefined, builderEdits:profile.builderEdits||0, fit:profile.fit, villageType:profile.villageType, contributions:profile.contributions, contributionNote:profile.contributionNote, investRange:profile.investRange, place:profile.place, placeName:profile.placeName, transcript:profile.transcript||undefined, agentConversationId:profile.agentConversationId||undefined,
         direction:DIRS[((Math.round(spot.a/(Math.PI/4))%8)+8)%8] },
       plan:{ budget, land:P.land, floor:P.floor, storeys:P.storeys, total:P.total }, utm };
   };
@@ -1758,7 +1795,7 @@ async function closingCircle(N){
   const payload=(email,phone)=>({ applicantId, consent:true, stage:offer?'land_offer':'interest', firstName:name, email, phone, utm,
     profile:{ belief:profile.belief, film:profile.film||undefined, kids:profile.kids, ages:profile.ages||undefined, vision:profile.vision,
       visionFollowUpQuestion:profile.visionFollowUpQuestion, visionFollowUp:profile.visionFollowUp||undefined, childhood:profile.wish||undefined,
-      villageType:profile.villageType, place:profile.place, placeName:profile.placeName, placeWishes:profile.placeWishes, landOffer:profile.landOffer,
+      villageType:profile.villageType, contributions:profile.contributions, contributionNote:profile.contributionNote, investRange:profile.investRange, place:profile.place, placeName:profile.placeName, placeWishes:profile.placeWishes, landOffer:profile.landOffer,
       families:profile.families, familiesAnswer:profile.familiesAnswer, privacy:profile.privacy, spaces:(profile.spaces||[]).map(k=>SPACES[k]),
       idea:profile.idea||undefined, food:profile.food, meat:profile.meat, meatOk:profile.meatOk,
       transcript:profile.transcript||undefined, agentConversationId:profile.agentConversationId||undefined } });

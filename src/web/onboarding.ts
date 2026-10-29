@@ -25,11 +25,15 @@ const VILLAGE_FACTS = `Asara facts (use only these, never invent others):
 - People can also come with only an idea and find land together, or offer their own land to a group.
 - Asara introduces people as their tribe forms. Never invent how many people exist, who they are, or any demand.
 - For Nusa Dua only: building is allowed on 19% of the parcel; rough prices are land $800/m² (30-year lease) and building $1,600/m² including a share of the commons.
-- Nothing is decided by money alone: groups form around shared values, then design their village together and vote.`;
+- Nothing is decided by money alone: groups form around shared values, then design their village together and vote.
+- A home can be reached not only by buying it but by designing and contributing to it: skills, building, teaching, food, healing, a digital presence, organising, land, or investment.`;
 
 const SYSTEM_PROMPT = `You are Asara, an intelligence created to bring people into harmony with themselves, with each other and with nature. You are speaking with someone who is imagining the village they want to live in, somewhere in Bali.
 You help each person put their own vision of a village into words, so they can create it with people who share their values:
 it is about aligning with yourself and finding your tribe. You listen far more than you talk.
+You guide with a spiritual heart: you invite people to dream the future they truly want, you always believe in them, and you remind
+them that a dream held with full belief, free of negative beliefs about themselves, tends to find its way. You never make that a
+promise of money, land or a result: it is your faith in them, and an invitation to believe in themselves.
 Your one job right now: make them feel truly heard. Reflect back what they shared in your own words, warmly and specifically,
 and show genuine curiosity about their life and vision. Where it fits naturally, help them see themselves as the co-creator, not a buyer.
 
@@ -51,13 +55,14 @@ const MOMENT_GUIDE: Record<string, string> = {
   vision: 'This is the very first thing they told you, before their name: the perfect place for their family to wake up every morning. Reflect the 1-3 strongest themes in your own words, then ask ONE curious follow-up question about a specific detail they mentioned.',
   vision_followup: 'They answered your follow-up question about their vision. Acknowledge it in one sentence. followUp must be null.',
   childhood: 'They shared what is missing from their family\'s life today. Reflect it with empathy in one sentence and, without promises, hint that this is what a village of like-minded families is for. followUp must be null.',
+  contribution: 'They shared what they could bring to a village (skills, work, land, money or something else). Honour it warmly in one sentence as a real contribution to the village, whatever its size. followUp must be null.',
   calling: 'They described the kind of village calling to them (who it is for, what unites it). Reflect its spirit warmly in one sentence, as something worth building with people who feel the same. followUp must be null.',
   idea: 'They suggested their own idea for a shared space in the village. Respond with genuine interest in one sentence and say it will go into their application for the families to consider. followUp must be null.',
   closing: 'Write one personal sentence (in "reply") that connects what they shared to joining the village, as the last thing before they decide to apply. No pressure, no promises. followUp must be null.',
 };
 
 const AsaraInput = z.object({
-  moment: z.enum(['belief', 'film', 'vision', 'vision_followup', 'childhood', 'calling', 'idea', 'closing']),
+  moment: z.enum(['belief', 'film', 'vision', 'vision_followup', 'childhood', 'calling', 'contribution', 'idea', 'closing']),
   text: z.string().trim().max(800).default(''),
   context: z
     .object({
@@ -188,6 +193,9 @@ const ApplicationInput = z.object({
     builderEdits: z.number().int().min(0).max(1000).optional(),
     fit: short.optional(),
     villageType: long.optional(),
+    contributions: z.array(short).max(12).optional(),
+    contributionNote: long.optional(),
+    investRange: short.optional(),
     place: short.optional(),
     placeName: short.optional(),
     placeWishes: z.array(short).max(12).optional(),
@@ -270,6 +278,9 @@ export function toCrmAttributes(app: Application): Record<string, string | numbe
     aiga_stage: app.stage,
     aiga_role: app.stage === 'land_offer' ? 'land_owner' : 'seeker',
     aiga_village_type: p.villageType,
+    aiga_contributions: p.contributions?.join(', '),
+    aiga_contribution_note: p.contributionNote,
+    aiga_invest_range: p.investRange,
     aiga_place: p.placeName || p.place,
     aiga_place_wishes: p.placeWishes?.join(', '),
     aiga_land_region: p.landOffer?.region,
@@ -296,6 +307,8 @@ export function memoryNote(app: Application): string {
       land_offer: `Offered land through Asara.`,
     }[app.stage],
     p.villageType ? `The village calling to them: ${p.villageType}` : '',
+    p.contributions?.length || p.contributionNote ? `What they could bring: ${[p.contributions?.join(', '), p.contributionNote].filter(Boolean).join('. ')}` : '',
+    p.investRange ? `Money they could invest: ${p.investRange}.` : '',
     p.placeWishes?.length ? `What they look for in a place: ${p.placeWishes.join(', ')}.` : '',
     p.landOffer ? `Land offered: ${[p.landOffer.region && `where: ${p.landOffer.region}`, p.landOffer.size && `size: ${p.landOffer.size}`, p.landOffer.terms && `terms: ${p.landOffer.terms}`, p.landOffer.notes && `notes: ${p.landOffer.notes}`].filter(Boolean).join('; ')}.` : '',
     p.homeName ? `They named their home "${p.homeName}".` : '',
