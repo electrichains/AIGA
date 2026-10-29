@@ -35,6 +35,12 @@ services:
         sync: false
       - key: ELEVENLABS_AGENT_ID
         sync: false
+      # Optional: a payment link for voluntary contributions that keep Asara running (Stripe Payment Link, PayPal.me, Ko-fi)
+      - key: CONTRIBUTE_URL
+        sync: false
+      # Optional: a separate J-Mission entry point for land offers
+      - key: JMISSION_LAND_ENTRY_POINT
+        sync: false
       # Applications go to J-Mission through an "api" entry point of the AIGA Village business
       - key: JMISSION_URL
         value: https://j-mission.onrender.com

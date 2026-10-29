@@ -717,7 +717,7 @@ const fmt=n=>n.toLocaleString('en-US');
 
 let name='friend', wishes=new Set(), choice=0;
 let aiOn=false, aiAvailable=false, applyOpen=false;
-fetch('/api/onboarding/status').then(r=>r.json()).then(st=>{ aiAvailable=!!st.asara; applyOpen=!!st.applications; voiceAvailable=!!st.voice; agentAvailable=!!st.agent; }).catch(()=>{});
+fetch('/api/onboarding/status').then(r=>r.json()).then(st=>{ aiAvailable=!!st.asara; applyOpen=!!st.applications; voiceAvailable=!!st.voice; agentAvailable=!!st.agent; contributeUrl=st.contribute||null; }).catch(()=>{});
 const applicantId=(crypto.randomUUID?crypto.randomUUID():'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 async function askAsara(moment,text,extra={}){
   if(!aiOn) return null;
@@ -1097,7 +1097,7 @@ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==
    If the line drops (mobile networks, a locked phone), the page reconnects once and Asara picks up exactly where
    she was; if that fails, the walk carries on without the call and only asks what is still missing.
    Resolves true if a call took place; agentEndedBy says how it ended ('done', 'user' or 'drop'). */
-let agentAvailable=false, agentEndedBy='';
+let agentAvailable=false, agentEndedBy='', contributeUrl=null;
 const AGENT_FIRST="Lovely, I'm so glad. So tell me: if you could create the perfect place to wake up every morning, for you and the people you love, what would it look like? What would a day feel like there?";
 const agentPrompt=()=>`You are Asara, an intelligence created to bring people into harmony with themselves, with each other and with nature. You are speaking out loud with someone who is imagining the village they want to live in, somewhere in Bali. They see a map of Bali next to you, and you can change what they see with your tools.
 
@@ -1717,12 +1717,12 @@ async function run(){
     if(state!=='applied'){ const ap=button('Apply for a place',ready||state==='saved'?'btn small':'ghost'); ap.onclick=()=>contact('application'); r.append(ap); }
     if(state==='open'){ const sv=button(`Save ${profile.homeName?'“'+short(profile.homeName,20)+'”':'my home'}`,ready?'ghost':'btn small'); sv.onclick=()=>contact('lead'); r.append(sv); }
     const c=button('See my dream card','ghost'), g=button('Explore the map','ghost');
-    r.append(c,g); actions.append(r);
+    r.append(c,g,shareButton(()=>buttons(stageDone))); actions.append(r);
     c.onclick=openCard; g.onclick=()=>{ g.textContent='Drag to look around'; idleSpin=0; };
   };
   let stageDone='open';
   const payload=(email,phone,stage)=>{
-    const utm={}; new URLSearchParams(location.search).forEach((v,k)=>{ if(/^utm_|^(fbclid|gclid|ttclid)$/.test(k)) utm[k]=v.slice(0,200); });
+    const utm={}; new URLSearchParams(location.search).forEach((v,k)=>{ if(/^utm_|^(fbclid|gclid|ttclid|ref)$/.test(k)) utm[k]=v.slice(0,200); });
     return { applicantId, consent:true, stage, firstName:name, email, phone,
       profile:{ belief:profile.belief, film:profile.film||undefined, kids:profile.kids, ages:profile.ages||undefined, vision:profile.vision,
         visionFollowUpQuestion:profile.visionFollowUpQuestion, visionFollowUp:profile.visionFollowUp||undefined, childhood:profile.wish||undefined,
@@ -1733,7 +1733,7 @@ async function run(){
         direction:DIRS[((Math.round(spot.a/(Math.PI/4))%8)+8)%8] },
       plan:{ budget, land:P.land, floor:P.floor, storeys:P.storeys, total:P.total }, utm };
   };
-  let contactKnown=null;
+  let contactKnown=null, shared=false;
   const contact=async(stage)=>{
     const isApp=stage==='application';
     actions.innerHTML=''; me(isApp?'Apply for a place':`Save ${profile.homeName||'my home'}`);
@@ -1766,6 +1766,7 @@ async function run(){
     if(!sent){ buttons(stageDone); return; }
     if(isApp){ stageDone='applied'; await say(`Thank you, ${N}. Your application is with the founder now, together with your vision and ${homeRef}. You'll hear from us by email or WhatsApp.`,300); }
     else { stageDone='saved'; await say(`Saved. ${profile.homeName?esc(profile.homeName):'Your home'} is waiting for you, ${N}, and the AIGA team will be in touch. Whenever you're ready, you can apply from here.`,300); }
+    if(!shared){ shared=true; await shareAndSupport(N); }
     buttons(stageDone);
   };
   const send=async(stage,email,phone,err)=>{
@@ -1777,6 +1778,31 @@ async function run(){
     }catch{ if(err) err.textContent='Your connection dropped. Please try again.'; else await say('Your connection dropped. Please try again.'); return false; }
   };
   buttons('open');
+}
+/* Sharing and supporting. Every vision spreads further when people share it; the link carries their id as ?ref=,
+   so J-Mission shows who brought whom. The contribution is voluntary and never touches anyone's place or selection. */
+const shareLink=()=>`${location.origin}/?ref=${applicantId}`;
+const shareText=`I just shared my vision of a village in Bali with Asara. If you dream of a new way of living too, share yours: the more of us believe in the same vision, the sooner it comes true.`;
+async function shareAsara(){
+  if(navigator.share){ try{ await navigator.share({title:'Asara · Find your tribe in Bali',text:shareText,url:shareLink()}); return 'shared'; }catch(e){ if(e&&e.name==='AbortError') return 'cancelled'; } }
+  return ask((box,done)=>{ const r=document.createElement('div'); r.className='row';
+    const wa=document.createElement('a'); wa.className='btn small'; wa.href=`https://wa.me/?text=${encodeURIComponent(shareText+' '+shareLink())}`; wa.target='_blank'; wa.rel='noopener'; wa.textContent='Share on WhatsApp'; wa.onclick=()=>setTimeout(()=>done('whatsapp'),300);
+    const cp=button('Copy the link','ghost'); cp.type='button'; cp.onclick=async()=>{ try{ await navigator.clipboard.writeText(shareLink()); cp.textContent='Copied'; }catch{ cp.textContent=shareLink(); } setTimeout(()=>done('copied'),900); };
+    const no=button('Maybe later','skip'); no.type='button'; no.onclick=()=>done('later');
+    r.append(wa,cp,no); box.append(r); });
+}
+function shareButton(restore){ const b=button('Share Asara','ghost'); b.type='button'; b.onclick=async()=>{ await shareAsara(); restore(); }; return b; }
+async function shareAndSupport(N){
+  await say(`${N}, one more thing. A village like yours comes true faster when more people believe in the same vision. If someone you love dreams of a new way of living, would you share Asara with them?`,300);
+  const res=await shareAsara();
+  if(res==='shared'||res==='whatsapp'||res==='copied') await say(`Thank you. Every person who shares a vision brings it closer.`,300);
+  if(!contributeUrl) return;
+  await say(`And only if it feels right: I run on electricity, servers and a lot of thinking. If you'd like to help keep this intelligence running until the dream becomes real, you can leave a small contribution. It's completely voluntary, and it never affects anyone's place or selection. United, we can build a new earth.`,400);
+  await ask((box,done)=>{ const r=document.createElement('div'); r.className='row';
+    const go=document.createElement('a'); go.className='btn small'; go.href=contributeUrl; go.target='_blank'; go.rel='noopener'; go.textContent='Contribute to Asara';
+    go.onclick=()=>{ me('Contribute to Asara'); setTimeout(()=>done('yes'),300); };
+    const no=button('Not now','skip'); no.type='button'; no.onclick=()=>{ me('Not now'); done('no'); };
+    r.append(go,no); box.append(r); }).then(v=>v==='yes'?say(`Thank you, from the bottom of my circuits. Together we keep the dream alive.`,200):say(`Of course. Your vision is already a gift.`,200));
 }
 /* Joining the circle (or offering land): Asara keeps their vision and introduces them as their tribe forms. */
 async function closingCircle(N){
@@ -1791,7 +1817,7 @@ async function closingCircle(N){
     :`<li class="now"><b>Share</b>You're here. Your vision joins the circle.</li><li><b>Listen</b>I listen for people who dream the same village.</li><li><b>Meet</b>The Asara team introduces you as your tribe forms.</li><li><b>Choose</b>Together you choose the land${l?`: ${l.name}, or another`:''}.</li><li><b>Create</b>You design the village with me, then build it.</li>`;
   j.appendChild(ul); log.scrollTop=log.scrollHeight;
   let joined=false, known=null;
-  const utm={}; new URLSearchParams(location.search).forEach((v,k)=>{ if(/^utm_|^(fbclid|gclid|ttclid)$/.test(k)) utm[k]=v.slice(0,200); });
+  const utm={}; new URLSearchParams(location.search).forEach((v,k)=>{ if(/^utm_|^(fbclid|gclid|ttclid|ref)$/.test(k)) utm[k]=v.slice(0,200); });
   const payload=(email,phone)=>({ applicantId, consent:true, stage:offer?'land_offer':'interest', firstName:name, email, phone, utm,
     profile:{ belief:profile.belief, film:profile.film||undefined, kids:profile.kids, ages:profile.ages||undefined, vision:profile.vision,
       visionFollowUpQuestion:profile.visionFollowUpQuestion, visionFollowUp:profile.visionFollowUp||undefined, childhood:profile.wish||undefined,
@@ -1807,7 +1833,7 @@ async function closingCircle(N){
   };
   const buttons=()=>{ actions.innerHTML=''; const r=document.createElement('div'); r.className='row';
     if(!joined){ const b=button(offer?'Share my land with Asara':'Join the circle'); b.onclick=join; r.append(b); }
-    const g=button('Explore the map','ghost'); g.onclick=()=>mapOverview(1600); r.append(g);
+    const g=button('Explore the map','ghost'); g.onclick=()=>mapOverview(1600); r.append(g,shareButton(buttons));
     actions.append(r); };
   const join=async()=>{
     actions.innerHTML=''; me(offer?'Share my land with Asara':'Join the circle');
@@ -1834,7 +1860,8 @@ async function closingCircle(N){
     });
     if(ok===true){ joined=true;
       await say(offer?`Thank you, ${N}. Your land is with the Asara team now, together with your vision. We'll be in touch.`
-        :`Welcome to the circle, ${N}. Your vision is with me now. When people who dream the same village come forward, I'll bring you together.`,300); }
+        :`Welcome to the circle, ${N}. Your vision is with me now. When people who dream the same village come forward, I'll bring you together.`,300);
+      await shareAndSupport(N); }
     buttons();
   };
   buttons();

@@ -351,6 +351,8 @@ export function onboardingRouter(): Router {
       applications: Boolean(process.env.JMISSION_URL && process.env.JMISSION_API_KEY && process.env.JMISSION_ENTRY_POINT),
       voice: voiceEnabled(),
       agent: agentEnabled(),
+      // A voluntary contribution link (Stripe Payment Link, PayPal.me, Ko-fi…), shown only when set and https.
+      contribute: /^https:\/\//.test(process.env.CONTRIBUTE_URL || '') ? process.env.CONTRIBUTE_URL : null,
     });
   });
 
