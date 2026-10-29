@@ -125,13 +125,16 @@ async function complete(messages: ChatMessage[]): Promise<string> {
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
         contents: [{ role: 'user', parts: [{ text: user }] }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 400, responseMimeType: 'application/json' },
+        // Room for the model's own reasoning as well as the short JSON reply: with a tight limit the reply came back cut off.
+        generationConfig: { temperature: 0.7, maxOutputTokens: 2048, responseMimeType: 'application/json' },
       }),
       signal: AbortSignal.timeout(9_000),
     });
     if (!response.ok) throw new Error(`Gemini ${response.status}: ${(await response.text().catch(() => '')).slice(0, 300)}`);
-    const data = (await response.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-    return (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('');
+    const data = (await response.json()) as { candidates?: { finishReason?: string; content?: { parts?: { text?: string }[] } }[] };
+    const text = (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('');
+    if (!text) console.warn('[Asara] Gemini returned no text, finishReason:', data.candidates?.[0]?.finishReason ?? 'none');
+    return text;
   }
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -400,8 +403,10 @@ export function onboardingRouter(): Router {
       return;
     }
     try {
-      const out = cleanAsaraOutput(await complete(buildAsaraMessages(parsed.data)));
+      const raw = await complete(buildAsaraMessages(parsed.data));
+      const out = cleanAsaraOutput(raw);
       if (!out) {
+        console.warn('[Asara] reply could not be read:', JSON.stringify(raw.slice(0, 200)));
         res.status(502).json({ error: 'Asara could not answer' });
         return;
       }
