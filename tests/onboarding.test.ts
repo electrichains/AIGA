@@ -133,6 +133,14 @@ describe('Applications to J-Mission', () => {
     assert.match(note, /^Applied to an Asara village in Payangan \(concept land\) through Asara\./);
   });
 
+  test('an early contact is a started lead with its own timestamp', () => {
+    const app = ApplicationInput.parse({ ...sample, stage: 'started', plan: undefined, profile: { vision: 'A village by the river' } });
+    const attrs = toCrmAttributes(app);
+    assert.equal(attrs.aiga_stage, 'started');
+    assert.ok('aiga_started_at' in attrs && !('aiga_applied_at' in attrs));
+    assert.match(memoryNote(app), /^Started creating their dream village with Asara/);
+  });
+
   test('the memory note carries the vision and the sketch', () => {
     const note = memoryNote(ApplicationInput.parse(sample));
     assert.match(note, /Their ideal village: Kids running/);

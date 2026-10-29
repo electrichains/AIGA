@@ -161,8 +161,9 @@ const ApplicationInput = z.object({
   consent: z.literal(true),
   /** 'lead' = saved their home for later; 'application' = applied for a place. */
   /** interest = joined the circle for a place or an idea; land_offer = offers their land to a group;
-      supplier = offers land, building work, materials, skills or services through the supplier gate. */
-  stage: z.enum(['lead', 'application', 'interest', 'land_offer', 'supplier']).default('application'),
+      supplier = offers land, building work, materials, skills or services through the supplier gate;
+      started = left their contact early in the walk, so Asara can help them continue. */
+  stage: z.enum(['lead', 'application', 'interest', 'land_offer', 'supplier', 'started']).default('application'),
   firstName: z.string().trim().min(1).max(60),
   email: z.preprocess(blankToUndefined, z.string().trim().email().max(254).optional()),
   phone: z.preprocess(blankToUndefined, z.string().trim().min(6).max(32).regex(/^[+0-9 ()-]+$/).optional()),
@@ -311,7 +312,7 @@ export function toCrmAttributes(app: Application): Record<string, string | numbe
     aiga_fit: p.fit,
     aiga_engagement_score: engagementScore(app),
     aiga_agent_conversation_id: p.agentConversationId,
-    [app.stage === 'lead' || app.stage === 'interest' ? 'aiga_saved_at' : app.stage === 'land_offer' || app.stage === 'supplier' ? 'aiga_offered_at' : 'aiga_applied_at']: new Date().toISOString(),
+    [app.stage === 'started' ? 'aiga_started_at' : app.stage === 'lead' || app.stage === 'interest' ? 'aiga_saved_at' : app.stage === 'land_offer' || app.stage === 'supplier' ? 'aiga_offered_at' : 'aiga_applied_at']: new Date().toISOString(),
   };
   return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined && v !== '')) as Record<string, string | number>;
 }
@@ -330,6 +331,7 @@ export function memoryNote(app: Application): string {
       application: `Applied to ${villageOf(p)} through Asara.`,
       interest: `Joined the Asara circle${p.placeName ? ` for ${p.placeName}` : ''}: Asara will introduce them as their tribe forms.`,
       land_offer: `Offered land through Asara.`,
+      started: `Started creating their dream village with Asara and left their contact so we can continue together if they get interrupted or busy.`,
       supplier: `Offered to help build villages through the Asara supplier gate: ${p.supplier?.offers.join(', ') || 'see below'}.`,
     }[app.stage],
     p.villageType ? `The village calling to them: ${p.villageType}` : '',

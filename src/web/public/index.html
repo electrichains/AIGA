@@ -1134,7 +1134,10 @@ function spaceKeys(text){
 function applyAnswer(field,value){
   const v=String(value??'').trim().slice(0,1500); if(!v) return 'nothing to save';
   switch(field){
-    case 'name': name=v.split(/\s+/)[0].slice(0,30); break;
+    case 'name': name=v.split(/\s+/)[0].slice(0,30);
+      if(applyOpen&&!earlyAsked&&!earlyContact){ askEarlyContact();
+        return 'saved. A small box is now on their screen where they can leave an email or WhatsApp number, so you can continue creating their dream if the call drops or they get busy. Mention it warmly in one sentence, never ask them to say it aloud, then continue.'; }
+      break;
     case 'vision': profile.vision=v.slice(0,800); if(stage.commons){ $('lb-vision').textContent=`“${short(profile.vision,90)}”`; } break;
     case 'vision_detail': profile.visionFollowUpQuestion='Asara asked in conversation'; profile.visionFollowUp=v; break;
     case 'missing': profile.wish=v; break;
@@ -1428,6 +1431,11 @@ async function run(){
       await say(`I've been listening without even asking your name. What should I call you?`);
       const n=await askText('Your first name',{cta:'Continue'}); if(n===TAKEOVER) return;
       name=n.slice(0,30)||'friend'; updateProgress();
+      if(applyOpen&&!earlyAsked&&!earlyContact){
+        await say(`Lovely to meet you, ${esc(name)}. Before we go on: in case we get interrupted, the line drops or life calls you away, where can I reach you so we can continue creating your dream together? An email, a WhatsApp number, or both.`);
+        const kept=await askEarlyContact();
+        await say(kept?`Thank you. Your dream is safe with me now, whatever happens.`:`Of course. You can always leave it with me later.`,300);
+      }
     },
     async belief(){
       await say(`${esc(name)}, here's what makes Asara different: villages here aren't sold to whoever pays first. They grow around people who share a vision, and they don't just live in them. They <b>create</b> them.`,700);
@@ -1778,7 +1786,7 @@ async function run(){
         direction:DIRS[((Math.round(spot.a/(Math.PI/4))%8)+8)%8] },
       plan:{ budget, land:P.land, floor:P.floor, storeys:P.storeys, total:P.total }, utm };
   };
-  let contactKnown=null, shared=false;
+  let contactKnown=earlyContact, shared=false;
   const contact=async(stage)=>{
     const isApp=stage==='application';
     actions.innerHTML=''; me(isApp?'Apply for a place':`Save ${profile.homeName||'my home'}`);
@@ -1824,6 +1832,48 @@ async function run(){
   };
   buttons('open');
 }
+/* Early contact: as soon as Asara knows their name, she asks, gently, where she can reach them if the walk is
+   interrupted, so the dream can be continued. It's saved as a 'started' lead in J-Mission; the end of the walk
+   reuses it instead of asking again. It sits in the conversation, so it also works while a live call is running. */
+let earlyContact=null, earlyAsked=false;
+const progressProfile=()=>({ vision:profile.vision, visionFollowUpQuestion:profile.visionFollowUpQuestion, visionFollowUp:profile.visionFollowUp||undefined,
+  childhood:profile.wish||undefined, belief:profile.belief, villageType:profile.villageType, contributions:profile.contributions,
+  contributionNote:profile.contributionNote, investRange:profile.investRange, place:profile.place, placeName:profile.placeName,
+  kids:profile.kids, ages:profile.ages||undefined });
+function askEarlyContact(){
+  earlyAsked=true;
+  return new Promise(res=>{
+    const m=document.createElement('div'); m.className='msg ai';
+    const f=document.createElement('form'); f.className='apply-form'; f.noValidate=true;
+    f.innerHTML=`<input type="email" id="ec-email" autocomplete="email" placeholder="Email" aria-label="Email">
+      <input type="tel" id="ec-phone" autocomplete="tel" placeholder="WhatsApp number, with country code" aria-label="WhatsApp number">
+      <label class="check"><input type="checkbox" id="ec-consent"><span>I agree that Asara keeps my answers and contacts me to continue my dream village. I can ask for them to be deleted at any time.</span></label>
+      <div class="hint" role="alert"></div>`;
+    const r=document.createElement('div'); r.className='row';
+    const go=button('Keep my dream safe'), later=button('Later','skip'); later.type='button'; r.append(go,later); f.append(r);
+    const err=f.querySelector('.hint');
+    later.onclick=()=>{ m.remove(); me('Later'); res(false); };
+    f.addEventListener('submit',async e=>{ e.preventDefault();
+      const email=f.querySelector('#ec-email').value.trim(), phone=f.querySelector('#ec-phone').value.trim();
+      if(!email&&!phone){ err.textContent='Add an email or a WhatsApp number, or tap Later.'; return; }
+      if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ err.textContent="That email doesn't look right. Check it and try again."; return; }
+      if(phone&&!/^[+0-9 ()-]{6,32}$/.test(phone)){ err.textContent='Use digits, spaces and an optional + for the WhatsApp number.'; return; }
+      if(!f.querySelector('#ec-consent').checked){ err.textContent='Please tick the box so I can keep your dream.'; return; }
+      go.disabled=true; go.textContent='Saving…'; err.textContent='';
+      try{
+        const utm={}; new URLSearchParams(location.search).forEach((v,k)=>{ if(/^utm_|^(fbclid|gclid|ttclid|ref)$/.test(k)) utm[k]=v.slice(0,200); });
+        const rr=await fetch('/api/applications',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({applicantId,consent:true,stage:'started',firstName:name,email,phone,utm,profile:progressProfile()})});
+        const d=await rr.json().catch(()=>({}));
+        if(!rr.ok){ err.textContent=d.error||'Something went wrong. Please try again.'; go.disabled=false; go.textContent='Keep my dream safe'; return; }
+      }catch{ err.textContent='Your connection dropped. Please try again.'; go.disabled=false; go.textContent='Keep my dream safe'; return; }
+      earlyContact={email,phone}; m.remove(); me(email||phone); res(true);
+    });
+    m.append(f); log.appendChild(m); log.scrollTop=log.scrollHeight;
+    if(!talkMode) setTimeout(()=>f.querySelector('#ec-email').focus(),50);
+  });
+}
+
 async function landQuestions(){
   await say(`Tell me about your land. Where is it?`);
   const region=await askText('e.g. Sidemen, near the river',{cta:'Continue'}); if(region===TAKEOVER) return TAKEOVER;
@@ -1943,7 +1993,7 @@ async function closingCircle(N,kind=profile.place==='offer'?'land':'circle'){
     ?`<li class="now"><b>Offer</b>You're here. Your land and your vision join the circle.</li><li><b>Listen</b>I listen for people whose vision fits your land.</li><li><b>Meet</b>The Asara team introduces you to them.</li><li><b>Co-create</b>Together you shape the village with me.</li><li><b>Build</b>The village takes form on your land.</li>`
     :`<li class="now"><b>Share</b>You're here. Your vision joins the circle.</li><li><b>Listen</b>I listen for people who dream the same village.</li><li><b>Meet</b>The Asara team introduces you as your tribe forms.</li><li><b>Choose</b>Together you choose the land${l?`: ${l.name}, or another`:''}.</li><li><b>Create</b>You design the village with me, then build it.</li>`;
   j.appendChild(ul); log.scrollTop=log.scrollHeight;
-  let joined=false, known=null;
+  let joined=false, known=earlyContact;
   const utm={}; new URLSearchParams(location.search).forEach((v,k)=>{ if(/^utm_|^(fbclid|gclid|ttclid|ref)$/.test(k)) utm[k]=v.slice(0,200); });
   const payload=(email,phone)=>({ applicantId, consent:true, stage:sup?'supplier':offer?'land_offer':'interest', firstName:name, email, phone, utm,
     profile:{ belief:profile.belief, film:profile.film||undefined, kids:profile.kids, ages:profile.ages||undefined, vision:profile.vision,
@@ -1965,8 +2015,10 @@ async function closingCircle(N,kind=profile.place==='offer'?'land':'circle'){
   const join=async()=>{
     actions.innerHTML=''; me(T.cta);
     if(!applyOpen){ await say(sup?`Offers open very soon, ${N}. Come back in a few days.`:`The circle opens very soon, ${N}. Come back in a few days, and bring your vision with you.`,200); buttons(); return; }
-    await say(T.reach);
-    const ok=await ask((box,done)=>{
+    let ok;
+    if(known){ const err={textContent:''}; ok=await send(known.email,known.phone,err); if(!ok){ await say(esc(err.textContent)); buttons(); return; } }
+    else{ await say(T.reach);
+    ok=await ask((box,done)=>{
       const f=document.createElement('form'); f.className='apply-form'; f.noValidate=true;
       f.innerHTML=`<input type="email" id="apply-email" autocomplete="email" placeholder="Email" aria-label="Email">
         <input type="tel" id="apply-phone" autocomplete="tel" placeholder="WhatsApp number, with country code" aria-label="WhatsApp number">
@@ -1984,7 +2036,7 @@ async function closingCircle(N,kind=profile.place==='offer'?'land':'circle'){
         if(await send(email,phone,err)){ known={email,phone}; me(email||phone); done(true); } else { go.disabled=false; go.textContent=T.formCta; }
       });
       box.append(f); setTimeout(()=>f.querySelector('#apply-email').focus(),50);
-    });
+    }); }
     if(ok===true){ joined=true;
       await say(T.thanks,300);
       await shareAndSupport(N,kind); }
