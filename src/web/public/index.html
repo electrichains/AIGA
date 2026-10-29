@@ -958,7 +958,11 @@ $('enter').addEventListener('click',startWith(()=>run()),{once:true});
 $('offer-enter').addEventListener('click',startWith(()=>runSupplier()),{once:true});
 if(new URLSearchParams(location.search).has('offer')){ $('offer-enter').className='btn'; $('enter').className='ghost'; $('offer-enter').parentNode.prepend($('offer-enter')); }
 
-/* Home styles for the swipe deck. A photo at images/styles/<key>.jpg replaces the illustration automatically. */
+/* Home styles for the swipe deck. A photo at images/styles/<key>.webp (card-sized, about 75 KB) replaces the illustration
+   automatically; the .jpg original is the fallback. */
+const stylePhoto=k=>`images/styles/${k}.webp`;
+const preloaded=new Map();   // each photo is fetched once, a couple of cards ahead of the swipe
+const preloadStyles=(from,n)=>STYLES.slice(from,from+n).forEach(st=>{ if(preloaded.has(st.key)) return; const im=new Image(); im.decoding='async'; im.src=stylePhoto(st.key); preloaded.set(st.key,im); });
 const STYLES=[
   {key:'tropical-modern',name:'Tropical Modern',line:'Flat white roofs, walls of glass, warm teak inside.',tags:['modern','open','light'],wall:0xe9e6df,accent:0xa57a52,roof:'flat'},
   {key:'glass-pavilion',name:'Glass Pavilion',line:'Concrete frames and floor-to-ceiling glass that glow at dusk.',tags:['modern','minimal','open'],wall:0xcfcac2,accent:0x3a3a38,roof:'flat'},
@@ -990,7 +994,7 @@ function styleFace(st){
       <rect x="78" y="102" width="26" height="22" fill="#f6d68f"/><rect x="114" y="102" width="40" height="22" fill="#f6d68f"/><rect x="164" y="102" width="26" height="22" fill="#f6d68f"/><rect x="200" y="102" width="22" height="22" fill="#f6d68f" opacity=".8"/>
       <rect x="40" y="123" width="220" height="4" fill="${a}" opacity=".6"/>
     </svg>
-    <img src="images/styles/${st.key}.jpg" alt="${st.name} home" onerror="this.remove()" decoding="async">
+    <img src="${stylePhoto(st.key)}" alt="${st.name} home" onerror="if(this.dataset.f)this.remove();else{this.dataset.f=1;this.src='images/styles/${st.key}.jpg'}" decoding="async">
   </div>`;
 }
 /* The swipe deck: drag, the ♥/✕ buttons, or the arrow keys. Resolves with the liked and passed styles. */
@@ -998,7 +1002,7 @@ function swipeDeck(){ return new Promise(resolve=>{
   const box=$('swipe'), stack=$('sw-stack'), liked=[], passed=[]; let i=0, current=null;
   const key=e=>{ if(e.key==='ArrowRight') decide(true); if(e.key==='ArrowLeft') decide(false); };
   const render=()=>{
-    stack.innerHTML=''; $('sw-count').textContent=`${i+1} of ${STYLES.length}`;
+    stack.innerHTML=''; $('sw-count').textContent=`${i+1} of ${STYLES.length}`; preloadStyles(i+2,2);
     [i+1,i].forEach((k,n)=>{ if(k>=STYLES.length) return; const st=STYLES[k], c=document.createElement('div');
       c.className='sw-card'+(n===0?' next':'');
       c.innerHTML=styleFace(st)+`<div class="sw-stamp yes">LOVE</div><div class="sw-stamp no">NOPE</div><div class="sw-info"><h3>${st.name}</h3><p>${st.line}</p></div>`;
@@ -1372,13 +1376,14 @@ document.addEventListener('visibilitychange',()=>{ if(wantAwake&&document.visibi
 async function consentStep(useAgent){
   if(aiAvailable||canListen()){
     const talk=canListen();
-    if(talk&&agentAvailable&&useAgent) import('/vendor/elevenlabs-client.js').catch(()=>{});
     await say(talk?`We can simply talk, out loud, like two people, or you can type. I'm an AI, so what you share is processed by AI services, and nothing is saved unless you choose to apply.`
                   :`I'm an AI, so what you write is processed by an AI service so I can answer you personally. Nothing is saved unless you choose to apply.`);
     const pick=await ask((box,done)=>{ const row=document.createElement('div'); row.className='row';
       (talk?[["Let's talk",'talk'],["I'll type",'type'],['Keep it offline','off']]:[['Sounds good','type'],['Keep it offline','off']]).forEach(([label,v])=>{
         const c=button(label,'chip'); c.type='button';
-        c.onclick=()=>{ const mic=v==='talk'?getMic():null; if(mic) mic.catch(()=>{}); me(label); done({v,mic}); }; row.append(c); });
+        c.onclick=()=>{ const mic=v==='talk'?getMic():null; if(mic) mic.catch(()=>{});
+          if(v==='talk'&&agentAvailable&&useAgent) import('/vendor/elevenlabs-client.js').catch(()=>{});   // fetched only for people who talk
+          me(label); done({v,mic}); }; row.append(c); });
       box.append(row); });
     if(pick.v==='off'){ offline=true; voiceOn=false; stopVoice(); $('voice-btn').hidden=true; await say(`Of course. I'll keep to my script, and nothing leaves your device.`,300); }
     else{ aiOn=aiAvailable;
@@ -1597,7 +1602,7 @@ async function run(){
   showLabel('lb-sun',false); tween(arc.material,'opacity',0,1200); tween(sun.material,'opacity',0,1200); sunRun=false; tween(uni.uWarm,'value',.3,1500);
   uni.uSun.value.set(.5,.75,-.2).normalize();
   thinking=true; $('gorb').classList.add('thinking');
-  STYLES.forEach(st=>{ const im=new Image(); im.decoding='async'; im.src=`images/styles/${st.key}.jpg`; });
+  preloadStyles(0,3);
   await say(`Let me look around the village…`,300);
   const cand=[...Array(12).keys()].map(i=>{ const a=(i+.5)*Math.PI/6, r=wishes.has('commons')?42:55, x=CX+r*Math.cos(a), z=CZ+r*Math.sin(a);
     return {i,a,r,x,z,road:Math.round(Math.min(...roadPts.map(([px,pz])=>Math.hypot(px-x,pz-z)))),green:Math.round(reach(a)-VZ)}; });
