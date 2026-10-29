@@ -1184,7 +1184,7 @@ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==
    she was; if that fails, the walk carries on without the call and only asks what is still missing.
    Resolves true if a call took place; agentEndedBy says how it ended ('done', 'user' or 'drop'). */
 let agentAvailable=false, agentEndedBy='', contributeUrl=null;
-const AGENT_FIRST="Lovely, I'm so glad. So tell me: if you could create the perfect place to wake up every morning, for you and the people you love, what would it look like? What would a day feel like there?";
+const AGENT_FIRST="Beautiful. Let's make this a moment of intention. Take a breath and let yourself dream without limits: if you could create the perfect place to wake up every morning, for you and the people you love, what would it look like? What would a day feel like there?";
 /* The agent's system prompt lives in ElevenLabs (docs/asara-agent-prompt.md is its source). */
 /* Every question Asara asks in the personal part. Which ones apply depends on the place the person chooses:
    Nusa Dua walks the real land in 3D; the other places, "anywhere" and "not sure" stay on the map; land owners describe their land. */
@@ -1202,7 +1202,6 @@ const STEP_DEFS={
   offer:[()=>profile.landOffer!==undefined,'tell me about your land: where is it?'],
   land:[()=>stage.land,'shall I show you the land?'],
   families:[()=>profile.familiesAnswer!==undefined,'how many households do you imagine in the village?'],
-  commons:[()=>profile.privacyAnswered,'between one big family and your own retreat, where do you feel you belong?'],
   spaces:[()=>profile.spacesAnswered,'what would you love to share with the others?'],
   food:[()=>profile.food!==undefined,'how important is food quality to you, from one to ten?'],
   meat:[()=>profile.meat!==undefined,'do you eat meat?'],
@@ -1210,9 +1209,9 @@ const STEP_DEFS={
 };
 function stepsNow(){
   const p=profile.place, base=['vision','missing','name','belief','calling','contribution','children','invest','place'];
-  const more=LAND_BY[p]?['land','families','commons','spaces','food','meat','meat_ok']
+  const more=LAND_BY[p]?['land','families','spaces','food','meat','meat_ok']
     :p==='offer'?['offer','families']
-    :p?[...(p==='anywhere'?['wishes']:[]),'families','commons','spaces','food','meat','meat_ok']:[];
+    :p?[...(p==='anywhere'?['wishes']:[]),'families','spaces','food','meat','meat_ok']:[];
   return [...base,...more].map(k=>[k,...STEP_DEFS[k]]);
 }
 /* Where they want to create their village. Nusa Dua dives into the real land; the others fly the map there. */
@@ -1395,7 +1394,8 @@ async function run(){
 
   /* ---------- 1. Listen first: a short hook, then their vision, then who they are ---------- */
   await say("Hello, I'm <b>Asara</b>.",200);
-  await say("Every village here begins as a <b>vision</b>, and grows around the people who share it.",500);
+  await say("What we're about to do together is a small, magical moment: setting an <b>intention</b> for the life you truly want to live.",600);
+  await say("Every village here began as a <b>vision</b> held by someone who believed in it. Your dream matters to me, and I'll hold it with you.",500);
   await say("So before I show you anything, I want to listen.",400);
   await consentStep(true);
 
@@ -1403,7 +1403,7 @@ async function run(){
      carries on with the same steps and keeps bringing the call back, which picks up at the next open step. */
   const scripted={
     async vision(){
-      await say(`If you could create the perfect place to wake up every morning, for you and the people you love, what would it look like? What would a day feel like there?`);
+      await say(`Take a breath, and let yourself dream without limits. If you could create the perfect place to wake up every morning, for you and the people you love, what would it look like? What would a day feel like there?`);
       const v=await askText(talkMode?"Speak freely, I'm listening":'Dream freely. There are no wrong answers',{cta:'Share',max:800}); if(v===TAKEOVER) return;
       profile.vision=v; const th=heard(v);
       await say(`“${esc(short(v,140))}”`,300);
@@ -1415,6 +1415,7 @@ async function run(){
         profile.visionFollowUpQuestion=aiV.followUp; profile.visionFollowUp=f;
         if(f){ const aiA=await askAsara('vision_followup',f,{followUpQuestion:aiV.followUp}); await say(aiA?esc(aiA.reply):`Thank you. I'll remember that.`,300); }
       }
+      await say(`Hold that picture, and feel it as if it's already here. A vision held with this much belief finds its way. It's only a matter of time.`,500);
     },
     async missing(){
       await say(`And what's missing from the life you live today?`);
@@ -1515,23 +1516,10 @@ async function run(){
       if(on3D()) showFamilies(profile.families);
       await say(profile.families<=12?`Intimate. Everyone knows everyone, and the commons feels like a family table.`:profile.families>=30?`A lively village. More families also means the cost of the shared spaces is spread wider.`:fam==='Not sure yet'?(on3D()?`That's fair. Here's what about ${profile.families} homes would look like, so you can feel the space.`:`That's fair. The number can grow with the people.`):`A lively middle: big enough for many friendships, small enough to know every name.`,1100);
     },
-    async commons(){
-      if(!on3D()){
-        await say(`How close should life be with your neighbours? Where are you on this scale?`);
-        const pv=await askScale('One big family','My own retreat',5); if(pv===TAKEOVER) return;
-        profile.privacy=pv; profile.privacyAnswered=true; updateProgress();
-        await say(pv<=4?`A village that feels like one big family, then.`:pv>=7?`Close enough to share, with plenty of room to be yourself.`:`A bit of both: togetherness, and your own space.`,400);
-        return;
-      }
-      const first=!stage.commons; showCommons();
-      await say(first?`At the heart, a green commons all the families share. I've put your vision right here, because this is where it would start. You decide how it feels. Where are you on this scale?`:`How should the commons feel? Where are you on this scale?`);
-      const pv=await askScale('One big family','My own retreat',5); if(pv===TAKEOVER) return;
-      sizeCommons(pv);
-      await say(pv<=4?`Then the heart should be bigger. I've widened the commons.`:pv>=7?`Then I'll keep the commons intimate and leave more room for everyone's own space.`:`A bit of both. I'll keep the commons as it is.`,500);
-    },
     async spaces(){
-      if(on3D()) showLabel('lb-hub',false);
-      await say(on3D()?`What would you love to find here? Choose freely. I'll build whatever you pick.`:`What would you love to share with the others? Choose freely.`);
+      if(on3D()){ const first=!stage.commons; showCommons(); showLabel('lb-hub',false);
+        if(first) await say(`At the heart of the village, a green commons all the families share. I've written your vision right here, because this is where it begins.`,500); }
+      await say(on3D()?`What would you love to find here? Choose freely. I'll build whatever you pick.`:`At the heart of your village, a place everyone shares. What would you love to find there? Choose freely.`);
       const sp=await askMulti(SPACES,on3D()?'Build these':'These'); if(sp===TAKEOVER) return;
       profile.spaces=sp; profile.spacesAnswered=true; if(on3D()) buildSpaces(sp);
       if(profile.idea===undefined){
@@ -1737,7 +1725,8 @@ async function run(){
   await say(`You told me: “${esc(short(profile.vision,110))}” The co-design is where that becomes real, with a tribe of families chosen because they share it.`,800);
   const aiX=await askAsara('closing','');
   if(aiX) await say(esc(aiX.reply),600);
-  await say(`One honest question, ${N}: could you see your family living here?`);
+  await say(`Keep holding this picture, ${N}. Feel it as if you already live here. I believe it's only a matter of time.`,500);
+  await say(`One honest question: could you see yourself living here?`);
   profile.fit=await askChoice(['Yes, I can','Maybe, I need to think','Not really']);
   const homeRef=profile.homeName?esc(profile.homeName):'your home';
   if(profile.fit==='Yes, I can') await say(`That's all I needed to hear.`,400);
@@ -1758,7 +1747,7 @@ async function run(){
     $('card-vision').textContent=`My ideal village: ${profile.vision}`;
     const bits=[ profile.kids==='No children'?'No children':`${profile.kids} ${profile.kids==='1'?'child':'children'}${profile.ages?` (${profile.ages})`:''}`,
       `Village of about ${profile.families} families`, `Food ${profile.food}/10`, profile.meat==='No, plant-based'?'Plant-based':profile.meat==='Sometimes'?'Eats meat sometimes':'Eats meat',
-      `${sty.name} · ${profile.homeType}`, profile.privacy<=4?'Big-family spirit':profile.privacy>=7?'Values privacy':'Balance of both' ];
+      `${sty.name} · ${profile.homeType}`, ...(profile.privacyAnswered?[profile.privacy<=4?'Big-family spirit':profile.privacy>=7?'Values privacy':'Balance of both']:[]) ];
     if(profile.film) bits.push(`Film: ${profile.film}`);
     $('card-profile').textContent=bits.join(' · ');
     const cw=$('card-wishes'); cw.innerHTML=''; profile.spaces.forEach(k=>{const s=document.createElement('span');s.className='chip';s.setAttribute('aria-pressed','true');s.textContent=SPACES[k];cw.append(s);});
@@ -1945,7 +1934,7 @@ async function closingCircle(N,kind=profile.place==='offer'?'land':'circle'){
   };
   mapOverview(2400);
   await say(sup?`${N}, what you offer could be what turns someone's vision into a real village.`:offer?`${N}, your land could become the place where someone's vision comes true.`
-    :`${N}, here's what happens next. I hold your vision, and as people with a similar dream come forward${l?`, around ${l.name} or anywhere in Bali`:''}, I'll introduce you. Your tribe forms around what you share, not around who pays first.`,500);
+    :`${N}, keep holding your vision and feel it as already real. I believe it's only a matter of time. Here's what happens next: I hold it with you, and as people with a similar dream come forward${l?`, around ${l.name} or anywhere in Bali`:''}, I'll introduce you. Your tribe forms around what you share, not around who pays first.`,500);
   const j=await say(`The journey:`,200);
   const ul=document.createElement('ul'); ul.className='journey';
   ul.innerHTML=sup
