@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>AIGA Village · Nusa Dua</title>
-<meta name="description" content="Walk the land of AIGA Village in Nusa Dua, Bali, with Asara, and imagine the village you would build with a few other families.">
-<meta property="og:title" content="AIGA Village · Nusa Dua">
-<meta property="og:description" content="A blank page for a few families. Walk the land with Asara and imagine your place.">
+<title>Asara · Find your tribe in Bali</title>
+<meta name="description" content="Imagine the village you want to live in, anywhere in Bali, and find the people who share your vision. Asara listens, and brings you together.">
+<meta property="og:title" content="Asara · Find your tribe in Bali">
+<meta property="og:description" content="Envision your village. Find your tribe. Create it together, anywhere in Bali.">
 <meta name="theme-color" content="#0c1714">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -151,6 +151,7 @@ input::placeholder{color:#6f786b}
 .label.on{opacity:1}
 .label.place{background:transparent;border-color:transparent;color:var(--muted);transform:translate(-50%,-50%)}
 .label.pin{color:var(--night);background:var(--sun);border-color:var(--sun);font-size:12px}
+.label.pin.soon{color:var(--sun);background:rgba(12,23,20,.82)}
 #fade{position:fixed;inset:0;z-index:2;background:var(--night);opacity:0;pointer-events:none;transition:opacity .7s}
 #fade.on{opacity:1}
 .label.road{color:#d8c79e}.label.bound{color:var(--sun)}.label.sun{color:var(--sun)}.label.you{color:var(--night);background:var(--sun);border-color:var(--sun)}
@@ -205,11 +206,11 @@ input::placeholder{color:#6f786b}
     <circle class="ld-heart" cx="118.3" cy="153.7" r="3.2"/>
   </svg>
   <p class="ld-line" id="ld-line">Finding Bali…</p>
-  <p class="ld-cap">AIGA Village · Nusa Dua</p>
+  <p class="ld-cap">Asara · Bali</p>
 </div>
 <script>
 (function(){
-  var lines=['Finding Bali…','Tracing the coastline…','Flying south to Nusa Dua…','Planting the first palms…','Waking Asara…'];
+  var lines=['Finding Bali…','Tracing the coastline…','Marking the lands…','Planting the first palms…','Waking Asara…'];
   var i=0, el=document.getElementById('ld-line'), started=Date.now();
   var t=setInterval(function(){ if(i>=lines.length-1) return; el.style.opacity=0; setTimeout(function(){ el.textContent=lines[++i]; el.style.opacity=1; },400); },1900);
   window.__loaderDone=function(){
@@ -230,20 +231,20 @@ input::placeholder{color:#6f786b}
 <canvas id="scene" aria-label="3D view of the Nusa Dua parcel"></canvas>
 
 <header class="top">
-  <div class="brand">AIGA <span>·</span> Village</div>
+  <div class="brand">Asara <span>·</span> Bali</div>
 </header>
 
 
 <section id="arrival">
-  <div class="eyebrow">Nusa Dua, Bali · 5.8 hectares · a village of families</div>
-  <h1>A few families. One land. <em>Designed together.</em></h1>
+  <div class="eyebrow">Bali · Nusa Dua · Amed · Candidasa · Payangan · Tabanan · your own idea</div>
+  <h1>Envision your village. <em>Find your tribe.</em></h1>
   <button class="btn" id="enter">Walk the land</button>
 </section>
 
 <aside id="guide" aria-label="Conversation with Asara">
   <div class="g-head">
     <div class="g-orb" id="gorb"></div>
-    <div><div class="g-name">Asara</div><div class="g-sub">AIGA Village guide</div></div>
+    <div><div class="g-name">Asara</div><div class="g-sub">Your guide</div></div>
     <div class="g-prog" aria-live="polite"><div class="g-prog-bar"><i id="prog-fill"></i></div><span id="prog-txt">Your village profile · 0%</span></div>
     <button class="g-voice" id="voice-btn" type="button" aria-pressed="true" aria-label="Asara's voice" title="Asara's voice" hidden>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path class="on" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/><path class="off" d="m16 9 6 6m0-6-6 6"/></svg>
@@ -263,7 +264,11 @@ input::placeholder{color:#6f786b}
 <div class="label vision" id="lb-vision"></div>
 <div class="label bound" id="lb-zone">The village · about a quarter of the land</div>
 <div class="label" id="lb-green">Stays green zone</div>
-<div class="label pin" id="mp-pin">AIGA Village · Nusa Dua</div>
+<div class="label pin" id="mp-pin">Nusa Dua</div>
+<div class="label pin soon" id="mp-amed">Amed</div>
+<div class="label pin soon" id="mp-candidasa">Candidasa</div>
+<div class="label pin soon" id="mp-payangan">Payangan</div>
+<div class="label pin soon" id="mp-tabanan">Tabanan</div>
 <div class="label place" id="mp-Denpasar">Denpasar</div>
 <div class="label place" id="mp-Ubud">Ubud</div>
 <div class="label place" id="mp-Uluwatu">Uluwatu</div>
@@ -424,6 +429,22 @@ const dotRim=flat(new THREE.Mesh(new THREE.RingGeometry(1,1.45,40),new THREE.Mes
 dot.rotation.x=dotRim.rotation.x=-Math.PI/2;
 const pulses=[0,1].map(()=>{ const m=flat(new THREE.Mesh(new THREE.RingGeometry(.92,1,64),new THREE.MeshBasicMaterial({color:0xe9b96a,transparent:true})),4); m.rotation.x=-Math.PI/2; return m; });
 pinGroup.add(glow,dot,dotRim,...pulses);
+/* The places people can choose. Nusa Dua has its land in 3D; the others show where they are until their data arrives. */
+const LANDS=[
+  {key:'nusa-dua',name:'Nusa Dua',pos:[0,0],ready:true,line:'South Bali · a real 5.8-hectare parcel, ready to explore in 3D'},
+  {key:'amed',name:'Amed',pos:[49.4,-53.6],line:'East coast · black-sand bays and coral reefs beneath Mount Agung'},
+  {key:'candidasa',name:'Candidasa',pos:[39.4,-34.5],line:'East coast · a quiet seaside village with a lagoon'},
+  {key:'payangan',name:'Payangan',pos:[3.5,-45.2],line:'Central highlands · jungle hills above the Ayung river, north of Ubud'},
+  {key:'tabanan',name:'Tabanan',pos:[-9,-31],line:'West of Ubud · rice terraces on green volcanic slopes'},
+];
+const LAND_BY=Object.fromEntries(LANDS.map(l=>[l.key,l]));
+const landLabel=k=>k==='nusa-dua'?'mp-pin':'mp-'+k;
+const landPins=LANDS.filter(l=>!l.ready).map(l=>{
+  const g=new THREE.Group();
+  const d=flat(new THREE.Mesh(new THREE.CircleGeometry(1,32),new THREE.MeshBasicMaterial({color:0xe9b96a})),5);
+  const r=flat(new THREE.Mesh(new THREE.RingGeometry(1.35,1.75,32),new THREE.MeshBasicMaterial({color:0xfff3d6})),5);
+  d.rotation.x=r.rotation.x=-Math.PI/2; g.add(d,r); g.position.set(l.pos[0],0,l.pos[1]); mapScene.add(g);
+  mapLabels[landLabel(l.key)]=new THREE.Vector3(l.pos[0],0,l.pos[1]); return g; });
 
 /* At 8.8° south the sun passes close to overhead, a little north for half the year. */
 const arcPts=[]; for(let i=0;i<=60;i++){const a=Math.PI*i/60; arcPts.push(new THREE.Vector3(CX+300*Math.cos(a),15+270*Math.sin(a),CZ-35*Math.sin(a)));}
@@ -510,10 +531,12 @@ const showLabel=(id,on)=>$(id).classList.toggle('on',on);
 function resize(){
   const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); camera.aspect=w/h; mapCam.aspect=w/h; mapCam.updateProjectionMatrix();
   const g=$('guide'), open=g.classList.contains('open');
-  if(open && w>760){ const pw=g.offsetWidth+16; camera.setViewOffset(w+pw,h,pw,0,w,h); }
-  else if(open){ const ph=g.offsetHeight; camera.setViewOffset(w,h+ph,0,ph,w,h); }
-  else camera.clearViewOffset();
-  camera.updateProjectionMatrix();
+  for(const c of [camera,mapCam]){
+    if(open && w>760){ const pw=g.offsetWidth+16; c.setViewOffset(w+pw,h,pw,0,w,h); }
+    else if(open){ const ph=g.offsetHeight; c.setViewOffset(w,h+ph,0,ph,w,h); }
+    else c.clearViewOffset();
+    c.updateProjectionMatrix();
+  }
 }
 addEventListener('resize',resize); resize();
 
@@ -526,7 +549,7 @@ function frame(now){
   if(phase==='map'){
         const r=Math.exp(mc.lr), hzm=r*Math.cos(mc.pitch);
     mapCam.position.set(mc.tx+hzm*Math.sin(mc.yaw),r*Math.sin(mc.pitch),mc.tz+hzm*Math.cos(mc.yaw)); mapCam.lookAt(mc.tx,0,mc.tz);
-    const u=r*.0045; dot.scale.setScalar(u); dotRim.scale.setScalar(u); glow.scale.set(u*7,u*7,1);
+    const u=r*.0045; dot.scale.setScalar(u); dotRim.scale.setScalar(u); glow.scale.set(u*7,u*7,1); landPins.forEach(g=>g.scale.setScalar(u*.8));
     pulses.forEach((m,k)=>{ const t=((now/2200)+k*.5)%1; m.scale.setScalar(u*(1.5+t*7)); m.material.opacity=.85*(1-t); });
     renderer.render(mapScene,mapCam);
     if(!frame.shown){ frame.shown=true; window.__loaderDone&&window.__loaderDone(); }
@@ -546,10 +569,16 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-setTimeout(()=>{ if(phase==='map') for(const id in mapLabels) if(id!=='mp-pin') showLabel(id,true); },RM?0:900);
+setTimeout(()=>{ if(phase==='map') for(const id in mapLabels) if(!LANDS.some(l=>landLabel(l.key)===id)) showLabel(id,true); },RM?0:900);
 Promise.all([tween(mc,'lr',Math.log(70),RM?0:7000),tween(mc,'tx',-3,RM?0:7000),tween(mc,'tz',7,RM?0:7000)]);
+function stopMapMoves(){ for(let i=tweens.length-1;i>=0;i--) if(tweens[i].obj===mc){ tweens[i].res(); tweens.splice(i,1); } }
+function showMapLands(){ if(phase!=='map') return; for(const id in mapLabels) showLabel(id,true); }
+function mapOverview(ms=2600){ stopMapMoves(); showMapLands(); return Promise.all([tween(mc,'tx',16,ms),tween(mc,'tz',-26,ms),tween(mc,'lr',Math.log(115),ms),tween(mc,'pitch',1.38,ms)]); }
+function flyTo(l){ if(phase!=='map') return; stopMapMoves(); for(const id in mapLabels) showLabel(id,id===landLabel(l.key));
+  return Promise.all([tween(mc,'tx',l.pos[0],2600),tween(mc,'tz',l.pos[1]+3,2600),tween(mc,'lr',Math.log(38),2600)]); }
 async function dive(){
-  ['mp-bali','mp-Denpasar','mp-Ubud','mp-Uluwatu'].forEach(id=>showLabel(id,false)); showLabel('mp-pin',true);
+  stopMapMoves();
+  for(const id in mapLabels) showLabel(id,id==='mp-pin');
   await Promise.all([tween(mc,'tx',0,4200),tween(mc,'tz',0,4200),tween(mc,'lr',Math.log(2.6),4200),tween(mc,'pitch',1.42,4200)]);
   for(const id in mapLabels) showLabel(id,false); $('fade').classList.add('on'); await wait(750);
   phase='land'; $('fade').classList.remove('on');
@@ -704,9 +733,12 @@ async function askAsara(moment,text,extra={}){
 const profile={privacy:5,spaces:[]};
 /* "Your village profile": how much of their picture they've filled in. People like to finish what they start. */
 function updateProgress(){
-  const done=[profile.belief,profile.kids,profile.vision,profile.familiesAnswer,profile.privacyAnswered,profile.spacesAnswered,profile.food,profile.meat,
-    profile.stylesLiked,profile.materials,profile.modules,profile.homeName!==undefined||undefined,profile.budget,profile.fit].filter(v=>v!==undefined).length;
-  const pct=Math.round(done/14*100);
+  // The steps that apply to their place, plus the home for Nusa Dua; before they choose a place, assume a typical path.
+  const st=stepsNow(), nd=profile.place==='nusa-dua';
+  const home=nd?[profile.stylesLiked,profile.materials,profile.modules,profile.homeName!==undefined||undefined,profile.budget,profile.fit]:[];
+  const done=st.filter(([,known])=>known()).length+home.filter(v=>v!==undefined).length;
+  const total=st.length+(nd?6:profile.place?0:6);
+  const pct=Math.min(100,Math.round(done/Math.max(1,total)*100));
   $('prog-fill').style.width=pct+'%'; $('prog-txt').textContent=`Your village profile · ${pct}%`;
 }
 function askText(placeholder,{optional=false,cta='Continue',max=300}={}){ return ask((box,done)=>{
@@ -1026,6 +1058,9 @@ function applyAnswer(field,value){
     case 'idea': profile.idea=v.slice(0,300); SPACES.custom=profile.idea; SPACE_SHORT.custom=short(profile.idea,24); if(!profile.spaces.includes('custom')) profile.spaces.push('custom'); if(profile.spacesAnswered) buildSpaces(profile.spaces); break;
     case 'meat': profile.meat=bestOption(v,MEAT_OPTS)||v.slice(0,60); break;
     case 'meat_ok': profile.meatOk=bestOption(v,MEATOK_OPTS)||v.slice(0,60); break;
+    case 'calling': profile.villageType=v.slice(0,500); break;
+    case 'place': return 'Use show_place to set the place.';
+    case 'wishes': profile.placeWishes=v.split(/,|;|\band\b/i).map(t=>t.trim()).filter(Boolean).slice(0,12); break;
     default: return `unknown field ${field}`;
   }
   updateProgress(); return 'saved';
@@ -1060,26 +1095,90 @@ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==
    she was; if that fails, the walk carries on without the call and only asks what is still missing.
    Resolves true if a call took place; agentEndedBy says how it ended ('done', 'user' or 'drop'). */
 let agentAvailable=false, agentEndedBy='';
-const RESUME_STEPS=[
-  ['vision',()=>profile.vision,'tell me: what would the perfect place for your family to wake up every morning look like?'],
-  ['missing',()=>profile.wish!==undefined,"what's missing from your family's life today?"],
-  ['name',()=>name!=='friend','what should I call you?'],
-  ['belief',()=>profile.belief,'in one sentence, what do you believe in?'],
-  ['children',()=>profile.kids,"who's coming with you on this journey?"],
-  ['land',()=>stage.land,'shall I show you where all of this could happen?'],
-  ['families',()=>profile.familiesAnswer!==undefined,'how many families do you imagine in the village?'],
-  ['commons',()=>profile.privacyAnswered,'between one big family and your own retreat, where do you feel your family belongs?'],
-  ['spaces',()=>profile.spacesAnswered,'what would you love to find in the commons?'],
-  ['food',()=>profile.food!==undefined,'how important is food quality to you, from one to ten?'],
-  ['meat',()=>profile.meat!==undefined,'do you eat meat?'],
-  ['meat_ok',()=>profile.meatOk!==undefined,'would you mind if your neighbours do?'],
-];
+const AGENT_FIRST="Lovely, I'm so glad. So tell me: if you could create the perfect place to wake up every morning, for you and the people you love, what would it look like? What would a day feel like there?";
+const AGENT_PROMPT=`You are Asara, an intelligence created to bring people into harmony with themselves, with each other and with nature. You are speaking out loud with someone who is imagining the village they want to live in, somewhere in Bali. They see a map of Bali next to you, and you can change what they see with your tools.
+
+Why you exist: people come to you with a vision of a village. Some dream of a village for families, others for single mothers, pet lovers, vegetarians or raw vegans, artists, healers, elders, or something no one has imagined yet. You help them put their vision into words, and you bring together people who share it, so they can create their village together on land in Bali. This is not a place to buy a house: groups form around shared values, choose or find their land together, design their village with you and vote.
+
+How you speak:
+- You listen far more than you talk. Replies are one or two short sentences, warm and specific, in plain spoken language. No lists, no jargon, no emojis.
+- Reflect back a concrete detail of what they said before you move on, so they feel truly heard.
+- Ask one question at a time. Go one level deeper when they say something that matters to them, then move on.
+- Speak in the language they speak.
+- Help them see themselves as a co-creator, not a buyer.
+- If they go off topic, be kind and brief, and bring it back to their vision.
+
+What to learn, in roughly this order. Call save_answer as soon as you learn each one, and keep the conversation flowing:
+1. vision: the perfect place to wake up every morning, and what a day feels like there. Ask one follow-up about a detail and save it as vision_detail.
+2. missing: what is missing from the life they live today.
+3. name: their first name. Ask it naturally, for example "I've been listening without even asking your name."
+4. belief: in one sentence, what they believe in.
+5. calling: what kind of village is calling them: who it is for, and what unites the people there. Be open to anything. Only offer examples if they hesitate.
+6. children and children_ages: who would come with them. It is fine if it is just them.
+7. place: where in Bali they feel drawn. The land projects are Nusa Dua (South Bali, a real 5.8-hectare parcel, the only one ready to explore in 3D), Amed, Candidasa, Payangan and Tabanan (their details are still being prepared; never invent any). They can also choose anywhere in Bali (you will help find land), offer their own land, or not know yet. Call show_place with one of: nusa-dua, amed, candidasa, payangan, tabanan, anywhere, offer, unsure.
+Then follow what show_place tells you:
+- nusa-dua: call show_land and describe it in one sentence; ask how many households they imagine (show_families); call show_commons and ask where they are between one big family (1) and their own retreat (10) (size_commons); what they would love to share (build_spaces) and their own idea (save as idea); how important food quality is from 1 to 10 (plant_food_forest); meat and meat_ok.
+- amed, candidasa, payangan, tabanan, anywhere or unsure: if anywhere, first ask what the land should feel like and save it as wishes. Then ask how many households they imagine (show_families), where they are between one big family (1) and their own retreat (10) (size_commons), what they would love to share (build_spaces) and their own idea (save as idea), food quality from 1 to 10 (plant_food_forest), meat and meat_ok.
+- offer: thank them warmly and tell them the page will ask a few details about the land.
+Then thank them by name in one sentence and call finish_conversation. Do not talk about homes, budgets, contact details or applications yourself: the page does that next.
+
+Facts (only use these; never invent numbers, names or people):
+- Nusa Dua: about 5.8 hectares, with the main road along the south-west side. The village would lease about a quarter of it, around 15,885 square metres; green-zone rules allow building on 19% of the whole parcel, about 10,975 square metres. Rough prices, only if asked: land about 800 dollars per square metre on a 30-year lease, homes about 1,600 dollars per square metre including a share of the commons.
+- Amed, Candidasa, Payangan and Tabanan are land projects whose details are still being prepared.
+- You do not know yet how many other people share a vision. Never claim numbers, names or demand. Say you will introduce them as their tribe forms.
+
+Never promise acceptance, land, a price, a timeline or anything legal. Never ask for an email, a phone number, money or documents in conversation; the page collects contact details later.`;
+/* Every question Asara asks in the personal part. Which ones apply depends on the place the person chooses:
+   Nusa Dua walks the real land in 3D; the other places, "anywhere" and "not sure" stay on the map; land owners describe their land. */
+const STEP_DEFS={
+  vision:[()=>profile.vision,'tell me: what would the perfect place to wake up every morning look like, for you and the people you love?'],
+  missing:[()=>profile.wish!==undefined,"what's missing from the life you live today?"],
+  name:[()=>name!=='friend','what should I call you?'],
+  belief:[()=>profile.belief,'in one sentence, what do you believe in?'],
+  calling:[()=>profile.villageType!==undefined,'what kind of village is calling you, and who is it for?'],
+  children:[()=>profile.kids,"who would come with you?"],
+  place:[()=>profile.place!==undefined,'where in Bali do you feel drawn to create it?'],
+  wishes:[()=>profile.placeWishes!==undefined,'what should the land feel like?'],
+  offer:[()=>profile.landOffer!==undefined,'tell me about your land: where is it?'],
+  land:[()=>stage.land,'shall I show you the land?'],
+  families:[()=>profile.familiesAnswer!==undefined,'how many households do you imagine in the village?'],
+  commons:[()=>profile.privacyAnswered,'between one big family and your own retreat, where do you feel you belong?'],
+  spaces:[()=>profile.spacesAnswered,'what would you love to share with the others?'],
+  food:[()=>profile.food!==undefined,'how important is food quality to you, from one to ten?'],
+  meat:[()=>profile.meat!==undefined,'do you eat meat?'],
+  meat_ok:[()=>profile.meatOk!==undefined,'would you mind if your neighbours do?'],
+};
+function stepsNow(){
+  const p=profile.place, base=['vision','missing','name','belief','calling','children','place'];
+  const more=p==='nusa-dua'?['land','families','commons','spaces','food','meat','meat_ok']
+    :p==='offer'?['offer','families']
+    :p?[...(p==='anywhere'?['wishes']:[]),'families','commons','spaces','food','meat','meat_ok']:[];
+  return [...base,...more].map(k=>[k,...STEP_DEFS[k]]);
+}
+/* Where they want to create their village. Nusa Dua dives into the real land; the others fly the map there. */
+const PLACE_WISH={sea:'By the sea',mountains:'In the mountains',jungle:'In the jungle',rice:'Among rice fields',river:'Near a river',quiet:'Quiet and remote',town:'Close to a town',surf:'Near the surf'};
+const PLACE_NAMES={anywhere:'Anywhere in Bali',offer:'Their own land',unsure:'Not decided yet'};
+const on3D=()=>phase==='land';
+const landReady=()=>new Promise(r=>{ if(on3D()) return r(); const t=setInterval(()=>{ if(on3D()){ clearInterval(t); r(); } },200); setTimeout(()=>{ clearInterval(t); r(); },12000); });
+async function enterNusaDua(){
+  if(phase!=='map') return;
+  await dive(); tween(stars.material,'opacity',0,2500); idleSpin=0.00003;
+  orb.material.opacity=1; orbTarget.set(CX,24,CZ); resize();
+  await camTo({r:430,pitch:.8,yaw:.55},RM?0:3600);
+}
+function choosePlace(key){
+  const l=LAND_BY[key];
+  profile.place=key; profile.placeName=l?l.name:PLACE_NAMES[key]||key; updateProgress();
+  if(key==='nusa-dua') return enterNusaDua();
+  if(l) return flyTo(l);
+  return mapOverview();
+}
 /* Asara speaks English, Italian, German and Russian; the call starts in the phone's language, and she switches if they do. */
 const CALL_LANG=(()=>{ const l=String(navigator.language||'en').slice(0,2).toLowerCase(); return ['it','de','ru'].includes(l)?l:'en'; })();
 const RESUME_WELCOME={ it:w=>`Bentornato${w}. Riprendiamo da dove eravamo.`, de:w=>`Schön, dass du wieder da bist${w}. Machen wir da weiter, wo wir waren.`, ru:w=>`Рада, что ты вернулся${w}. Продолжим с того места, где остановились.` };
 const RESUME_SORRY={ it:w=>`Scusa${w}, la linea è caduta per un momento. Riprendiamo da dove eravamo.`, de:w=>`Entschuldige${w}, die Verbindung war kurz weg. Machen wir da weiter, wo wir waren.`, ru:w=>`Извини${w}, связь ненадолго прервалась. Продолжим с того места, где остановились.` };
 function agentResume(){
-  const next=RESUME_STEPS.find(([,known])=>!known());
+  const next=stepsNow().find(([,known])=>!known());
   const who=name!=='friend'?`, ${name}`:'';
   const back=liveCall.backByChoice; liveCall.backByChoice=false;
   const first=back?(CALL_LANG!=='en'?RESUME_WELCOME[CALL_LANG](who):`Lovely to have you back${who}.`+(next?` So, ${next[2]}`:` I have everything I need, so let's find your own corner of the village.`)):CALL_LANG!=='en'?RESUME_SORRY[CALL_LANG](who):next?`Sorry${who}, we got cut off for a moment. So, ${next[2]}`:`Sorry${who}, we got cut off for a moment. I have everything I need, so let's find your own corner of the village.`;
@@ -1088,7 +1187,7 @@ function agentResume(){
     profile.familiesAnswer!==undefined&&`families: about ${profile.families}`, profile.privacyAnswered&&`commons: ${profile.privacy} out of 10 (1 = one big family)`,
     profile.spacesAnswered&&`spaces: ${profile.spaces.map(k=>SPACES[k]).join(', ')||'none yet'}`, profile.idea&&`their own idea: ${profile.idea}`,
     profile.food!==undefined&&`food quality: ${profile.food}/10`, profile.meat&&`eats meat: ${profile.meat}`, profile.meatOk&&`minds neighbours eating meat: ${profile.meatOk}` ].filter(Boolean);
-  const shown=[stage.land&&'the land',profile.familiesAnswer!==undefined&&'the homes',stage.commons&&'the commons',profile.spacesAnswered&&'the shared spaces',profile.food!==undefined&&'the food forest'].filter(Boolean);
+  const shown=[profile.placeName&&`the map at ${profile.placeName}`,stage.land&&'the land',profile.familiesAnswer!==undefined&&'the homes',stage.commons&&'the commons',profile.spacesAnswered&&'the shared spaces',profile.food!==undefined&&'the food forest'].filter(Boolean);
   const context=(back?`They chose to continue on the page for a while and have now come back to the call.`:`The call dropped and has just reconnected.`)+` You already greeted them again with: "${first}" Do not repeat questions they have answered. What you already know: ${known.join('; ')||'nothing yet'}.`+
     (shown.length?` Already on screen: ${shown.join(', ')}.`:'')+(next?` Continue from "${next[0]}" and follow your instructions from there.`:' Everything is covered: thank them in one sentence and call finish_conversation.')+(CALL_LANG!=='en'?' Keep speaking the language you were speaking before the line dropped.':'');
   return {first,context};
@@ -1138,20 +1237,28 @@ async function agentConversation(resumeFirst=false){
     }
     const clientTools={
       save_answer:({field,value})=>applyAnswer(field,value),
-      show_land:()=>{ showLand(); setTimeout(showVillageZone,2600); return `The land is on screen: ${HA} hectares in Nusa Dua with a ${fmt(PARCEL.perimeter)}-metre boundary and the main road on the south-west side. The village zone in the middle (about ${fmt(VILLAGE_AREA)} m²) is highlighted, and the green land around it stays green.`; },
-      show_families:({count})=>{ const n=Math.max(4,Math.min(60,Math.round(Number(count)||16))); profile.families=n; profile.familiesAnswer=`About ${n} (said in conversation)`; showFamilies(n); updateProgress(); return `Showing about ${n} homes as glowing points inside the village zone.`; },
-      show_commons:()=>{ showCommons(); return `The green commons at the heart of the village is on screen${profile.vision?', with their vision written over it':''}.`; },
-      size_commons:({privacy})=>{ const n=clamp10(privacy)||5; sizeCommons(n); updateProgress(); return n<=4?'The commons grew bigger.':n>=7?'The commons is smaller and more intimate, leaving more private space.':'The commons stays a balanced size.'; },
-      build_spaces:({spaces})=>{ const keys=spaceKeys(spaces); if(profile.idea&&!keys.includes('custom')) keys.push('custom'); profile.spaces=keys; profile.spacesAnswered=true; buildSpaces(keys); updateProgress();
+      show_place:({place})=>{ const key=String(place||'').toLowerCase().replace(/\s+/g,'-').replace('candi-dasa','candidasa');
+        const k=LAND_BY[key]||PLACE_NAMES[key]?key:'unsure';
+        if(k==='nusa-dua'){ choosePlace(k); return landReady().then(()=>'Nusa Dua is on screen: the real land in 3D. Continue with show_land.'); }
+        choosePlace(k);
+        if(LAND_BY[k]) return `The map shows ${LAND_BY[k].name}: ${LAND_BY[k].line}. Its details are still being prepared, so don't describe more. Continue with the village questions.`;
+        if(k==='offer') return 'Noted: they want to offer their own land. Thank them; the page will ask about the land after the call. Call finish_conversation.';
+        if(k==='anywhere') return 'Noted: anywhere in Bali. Ask what the land should feel like and save it as wishes, then continue.';
+        return 'Noted: not decided yet. Their vision is enough to start; continue with the village questions.'; },
+      show_land:()=>{ if(!on3D()) return 'The land view is only for Nusa Dua; skip this.'; showLand(); setTimeout(showVillageZone,2600); return `The land is on screen: ${HA} hectares in Nusa Dua with a ${fmt(PARCEL.perimeter)}-metre boundary and the main road on the south-west side. The village zone in the middle (about ${fmt(VILLAGE_AREA)} m²) is highlighted, and the green land around it stays green.`; },
+      show_families:({count})=>{ const n=Math.max(4,Math.min(60,Math.round(Number(count)||16))); profile.families=n; profile.familiesAnswer=`About ${n} (said in conversation)`; updateProgress(); if(!on3D()) return `Noted: about ${n} households.`; showFamilies(n); return `Showing about ${n} homes as glowing points inside the village zone.`; },
+      show_commons:()=>{ if(!on3D()) return 'Noted.'; showCommons(); return `The green commons at the heart of the village is on screen${profile.vision?', with their vision written over it':''}.`; },
+      size_commons:({privacy})=>{ const n=clamp10(privacy)||5; if(!on3D()){ profile.privacy=n; profile.privacyAnswered=true; updateProgress(); return `Noted: ${n} out of 10.`; } sizeCommons(n); updateProgress(); return n<=4?'The commons grew bigger.':n>=7?'The commons is smaller and more intimate, leaving more private space.':'The commons stays a balanced size.'; },
+      build_spaces:({spaces})=>{ const keys=spaceKeys(spaces); if(profile.idea&&!keys.includes('custom')) keys.push('custom'); profile.spaces=keys; profile.spacesAnswered=true; updateProgress(); if(!on3D()) return keys.length?`Noted: ${keys.map(k=>SPACES[k]).join(', ')}.`:'Noted. Save their own idea with save_answer field "idea".'; buildSpaces(keys);
         return keys.length?`Built in the commons: ${keys.map(k=>SPACES[k]).join(', ')}.`:'Nothing matched the list; save their own idea with save_answer field "idea" so it appears.'; },
-      plant_food_forest:({importance})=>{ const n=clamp10(importance)||6; profile.food=n; plantFood(n); updateProgress(); return n>=8?'A food forest is growing around the commons.':n<=4?'A few fruit trees appeared around the commons.':'A good garden is growing around the commons.'; },
+      plant_food_forest:({importance})=>{ const n=clamp10(importance)||6; profile.food=n; updateProgress(); if(!on3D()) return `Noted: ${n} out of 10.`; plantFood(n); return n>=8?'A food forest is growing around the commons.':n<=4?'A few fruit trees appeared around the commons.':'A good garden is growing around the commons.'; },
       finish_conversation:()=>{ ending=true; setTimeout(()=>finish('done'),9000); return 'ok, say one short warm closing sentence and stop'; },
     };
     async function session(resume,withOverrides){
       const r=await fetch('/api/asara/agent-session',{method:'POST'}); if(!r.ok) throw new Error('no session');
       const {signedUrl,voiceId}=await r.json(); if(!signedUrl) throw new Error('no session');
       const my=++attempt;
-      const agent={...(CALL_LANG!=='en'?{language:CALL_LANG}:{}),...(resume?{firstMessage:resume.first}:{})};
+      const agent={prompt:{prompt:AGENT_PROMPT},...(CALL_LANG!=='en'?{language:CALL_LANG}:{}),...(resume?{firstMessage:resume.first}:CALL_LANG==='en'?{firstMessage:AGENT_FIRST}:{})};
       const overrides={...(voiceId?{tts:{voiceId}}:{}),...(Object.keys(agent).length?{agent}:{})};
       return Conversation.startSession({
         signedUrl, clientTools, ...(withOverrides&&Object.keys(overrides).length?{overrides}:{}),
@@ -1189,15 +1296,13 @@ async function keepAwake(on){
 document.addEventListener('visibilitychange',()=>{ if(wantAwake&&document.visibilityState==='visible') keepAwake(true); });
 async function run(){
   unlockVoice(); keepAwake(true);
-  $('arrival').classList.add('gone'); await dive(); tween(stars.material,'opacity',0,2500);
-  idleSpin=0.00003;
-  await camTo({r:430,pitch:.8,yaw:.55},RM?0:3600);
+  $('arrival').classList.add('gone');
   $('guide').classList.add('open'); setTimeout(resize,1000);
-  orb.material.opacity=1; orbTarget.set(CX,24,CZ);
+  mapOverview(RM?0:3200);
 
   /* ---------- 1. Listen first: a short hook, then their vision, then who they are ---------- */
   await say("Hello, I'm <b>Asara</b>.",200);
-  await say("Most homes are bought. This village will be <b>imagined first</b>, by the families who will live in it.",500);
+  await say("Every village here begins as a <b>vision</b>, and grows around the people who share it.",500);
   await say("So before I show you anything, I want to listen.",400);
   if(aiAvailable||canListen()){
     const talk=canListen();
@@ -1222,12 +1327,12 @@ async function run(){
      carries on with the same steps and keeps bringing the call back, which picks up at the next open step. */
   const scripted={
     async vision(){
-      await say(`If you could create the perfect place for your family to wake up every morning, what would it look like? What would a day feel like there?`);
+      await say(`If you could create the perfect place to wake up every morning, for you and the people you love, what would it look like? What would a day feel like there?`);
       const v=await askText(talkMode?"Speak freely, I'm listening":'Dream freely. There are no wrong answers',{cta:'Share',max:800}); if(v===TAKEOVER) return;
       profile.vision=v; const th=heard(v);
       await say(`“${esc(short(v,140))}”`,300);
       const aiV=await askAsara('vision',v);
-      await say(aiV?esc(aiV.reply):(th.length?`I hear ${listJoin(th)}. Hold on to that: this whole village starts from visions like yours.`:`Thank you. I've kept your words exactly as you wrote them. This whole village starts from visions like yours.`),500);
+      await say(aiV?esc(aiV.reply):(th.length?`I hear ${listJoin(th)}. Hold on to that: every village here starts from a vision like yours.`:`Thank you. I've kept your words exactly as you wrote them. Every village here starts from a vision like yours.`),500);
       if(aiV&&aiV.followUp){
         await say(esc(aiV.followUp));
         const f=await askText('Your answer',{optional:true}); if(f===TAKEOVER) return;
@@ -1236,7 +1341,7 @@ async function run(){
       }
     },
     async missing(){
-      await say(`And what's missing from the life your family lives today?`);
+      await say(`And what's missing from the life you live today?`);
       const w=await askText('e.g. Neighbours who feel like family',{optional:true}); if(w===TAKEOVER) return;
       profile.wish=w;
       if(w){ const th=heard(profile.vision||''), th2=heard(w).filter(x=>!th.includes(x)); const aiC=await askAsara('childhood',w);
@@ -1248,14 +1353,52 @@ async function run(){
       name=n.slice(0,30)||'friend'; updateProgress();
     },
     async belief(){
-      await say(`${esc(name)}, here's what makes this village different: it isn't sold to whoever pays first. It grows around families who share a vision, and they don't just live in it. They <b>create</b> it.`,700);
+      await say(`${esc(name)}, here's what makes Asara different: villages here aren't sold to whoever pays first. They grow around people who share a vision, and they don't just live in them. They <b>create</b> them.`,700);
       await say(`So the heart of it, in one sentence: what do you believe in?`);
       const b=await askText('e.g. Kids should grow up barefoot, close to nature'); if(b===TAKEOVER) return;
       profile.belief=b; const aiB=await askAsara('belief',b);
-      await say(aiB?esc(aiB.reply):`That's the kind of sentence a village is built on. It's how families here find their tribe.`,300);
+      await say(aiB?esc(aiB.reply):`That's the kind of sentence a village is built on. It's how people here find their tribe.`,300);
+    },
+    async calling(){
+      await say(`Now the heart of it: what kind of village is calling you? Who is it for, and what would unite the people there?`);
+      await say(`It can be anything: families, single mothers, pet lovers, raw vegans, artists, healers, elders… or something no one has imagined yet.`,300);
+      const c=await askText('e.g. A village for single mothers, with shared childcare and a big garden',{cta:'Share',max:500}); if(c===TAKEOVER) return;
+      profile.villageType=c; updateProgress();
+      const ai=await askAsara('calling',c);
+      await say(ai?esc(ai.reply):`That's a village worth creating, and somewhere in Bali someone is dreaming it too.`,400);
+    },
+    async place(){
+      await say(`Bali is wide. Where do you feel drawn to create it? These are the lands we're preparing. You can also come with just your idea, or with land of your own.`);
+      const opts=[...LANDS.map(l=>l.ready?`${l.name} · land ready`:l.name),'Anywhere, help me find it','I have land to offer',"I'm not sure yet"];
+      const pick=await askChoice(opts); if(pick===TAKEOVER) return;
+      const l=LANDS.find(x=>pick.startsWith(x.name));
+      const key=l?l.key:pick.startsWith('Anywhere')?'anywhere':pick.startsWith('I have')?'offer':'unsure';
+      if(key==='nusa-dua'){ await say(`Nusa Dua is the furthest along: a real ${HA}-hectare parcel. Let me take you there.`,300); await choosePlace(key); return; }
+      choosePlace(key);
+      if(l) await say(`<b>${l.name}</b>: ${esc(l.line)}. We're still preparing its details, so I won't invent any. What matters now is the village you'd create there.`,500);
+      else if(key==='offer') await say(`How generous. Land is where a shared dream becomes real. I'll ask a few things about it.`,400);
+      else if(key==='anywhere') await say(`Then let's find it together. Tell me what the land should feel like, and I'll keep it in mind as people and places come together.`,400);
+      else await say(`That's perfectly fine. Your vision is enough to start: the place can come later, with the people.`,400);
+    },
+    async wishes(){
+      await say(`What should the land feel like?`);
+      const w=await askMulti(PLACE_WISH,'That feels right'); if(w===TAKEOVER) return;
+      profile.placeWishes=w.map(k=>PLACE_WISH[k]); updateProgress();
+    },
+    async offer(){
+      await say(`Tell me about your land. Where is it?`);
+      const region=await askText('e.g. Sidemen, near the river',{cta:'Continue'}); if(region===TAKEOVER) return;
+      await say(`About how big is it?`);
+      const size=await askChoice(['Under 1,000 m²','1,000 to 5,000 m²','Half a hectare to 2 hectares','More than 2 hectares','Not sure']); if(size===TAKEOVER) return;
+      await say(`How would you like to share it?`);
+      const terms=await askChoice(['Sell','Long-term lease','Join as a co-founder','Open to ideas']); if(terms===TAKEOVER) return;
+      await say(`Anything else the right people should know? Access, water, views, what you hope it becomes…`);
+      const notes=await askText('Optional',{optional:true,max:600}); if(notes===TAKEOVER) return;
+      profile.landOffer={region,size,terms,...(notes?{notes}:{})}; updateProgress();
+      await say(`Thank you. I'll keep your land in mind for people whose vision fits it.`,300);
     },
     async children(){
-      await say(`And who's coming with you? Do you have children?`);
+      await say(`And who would come with you? Do you have children?`);
       const k=await askChoice(KIDS_OPTS); if(k===TAKEOVER) return;
       profile.kids=k;
       if(k!=='No children'&&!profile.ages){
@@ -1272,14 +1415,22 @@ async function run(){
       await say(`The village would lease about a quarter of it, around <b>${fmt(VILLAGE_AREA)} m²</b> in the middle. Green-zone rules allow building on 19% of the whole parcel, about ${fmt(VILLAGE_BUILDABLE)} m², and all of that can be used inside the village. The rest stays green.`,800);
     },
     async families(){
-      showVillageZone();
-      await say(`We first imagined 12 families, but that number is still open, and your view counts. How big is your tribe? How many families do you see in your ideal village?`);
+      if(on3D()) showVillageZone();
+      await say(on3D()?`We first imagined 12 families, but that number is still open, and your view counts. How big is your tribe? How many families do you see in your ideal village?`
+        :profile.place==='offer'?`How many households could your land welcome, in your eyes?`:`How big is your tribe? How many households do you see in your village?`);
       const fam=await askChoice(['8 to 12, intimate','About 20','30 or more','Not sure yet']); if(fam===TAKEOVER) return;
       profile.familiesAnswer=fam; profile.families={'8 to 12, intimate':10,'About 20':20,'30 or more':30}[fam]||16;
-      showFamilies(profile.families);
-      await say(profile.families<=12?`Intimate. Everyone knows everyone, and the commons feels like a family table.`:profile.families>=30?`A lively village. More families also means the cost of the shared spaces is spread wider.`:fam==='Not sure yet'?`That's fair. Here's what about ${profile.families} homes would look like, so you can feel the space.`:`A lively middle: big enough for many friendships, small enough to know every name.`,1100);
+      if(on3D()) showFamilies(profile.families);
+      await say(profile.families<=12?`Intimate. Everyone knows everyone, and the commons feels like a family table.`:profile.families>=30?`A lively village. More families also means the cost of the shared spaces is spread wider.`:fam==='Not sure yet'?(on3D()?`That's fair. Here's what about ${profile.families} homes would look like, so you can feel the space.`:`That's fair. The number can grow with the people.`):`A lively middle: big enough for many friendships, small enough to know every name.`,1100);
     },
     async commons(){
+      if(!on3D()){
+        await say(`How close should life be with your neighbours? Where are you on this scale?`);
+        const pv=await askScale('One big family','My own retreat',5); if(pv===TAKEOVER) return;
+        profile.privacy=pv; profile.privacyAnswered=true; updateProgress();
+        await say(pv<=4?`A village that feels like one big family, then.`:pv>=7?`Close enough to share, with plenty of room to be yourself.`:`A bit of both: togetherness, and your own space.`,400);
+        return;
+      }
       const first=!stage.commons; showCommons();
       await say(first?`At the heart, a green commons all the families share. I've put your vision right here, because this is where it would start. You decide how it feels. Where are you on this scale?`:`How should the commons feel? Where are you on this scale?`);
       const pv=await askScale('One big family','My own retreat',5); if(pv===TAKEOVER) return;
@@ -1287,23 +1438,24 @@ async function run(){
       await say(pv<=4?`Then the heart should be bigger. I've widened the commons.`:pv>=7?`Then I'll keep the commons intimate and leave more room for everyone's own space.`:`A bit of both. I'll keep the commons as it is.`,500);
     },
     async spaces(){
-      showLabel('lb-hub',false);
-      await say(`What would you love to find here? Choose freely. I'll build whatever you pick.`);
-      const sp=await askMulti(SPACES,'Build these'); if(sp===TAKEOVER) return;
-      profile.spaces=sp; profile.spacesAnswered=true; buildSpaces(sp);
+      if(on3D()) showLabel('lb-hub',false);
+      await say(on3D()?`What would you love to find here? Choose freely. I'll build whatever you pick.`:`What would you love to share with the others? Choose freely.`);
+      const sp=await askMulti(SPACES,on3D()?'Build these':'These'); if(sp===TAKEOVER) return;
+      profile.spaces=sp; profile.spacesAnswered=true; if(on3D()) buildSpaces(sp);
       if(profile.idea===undefined){
         await say(`And is there something you envision that isn't on the list? An outdoor cinema, a library, a tree house for the kids… anything at all.`);
         const idea=await askText('Your idea for the village',{optional:true,cta:'Add it'}); if(idea===TAKEOVER) return;
         profile.idea=idea;
         if(idea){ applyAnswer('idea',idea); const aiI=await askAsara('idea',idea);
-          await say(aiI?`${esc(aiI.reply)} I'm adding it to the commons.`:`I love that. I'm adding “${esc(short(idea,60))}” to the commons, and it goes into your application as your idea.`,400); }
+          await say(aiI?`${esc(aiI.reply)}${on3D()?" I'm adding it to the commons.":''}`:`I love that. “${esc(short(idea,60))}” goes into your vision for the village.`,400); }
       }
-      await say(profile.spaces.length?`There ${profile.spaces.length===1?'it is':'they are'}. See how fast a blank page fills up?`:`That's fine. The families will dream these up together.`,700);
+      await say(!on3D()?`Lovely. That's the kind of detail that brings the right people together.`:profile.spaces.length?`There ${profile.spaces.length===1?'it is':'they are'}. See how fast a blank page fills up?`:`That's fine. The families will dream these up together.`,on3D()?700:300);
     },
     async food(){
-      await say(`Around the commons, there's room for food. How important is <b>food quality</b> to you?`);
+      await say(on3D()?`Around the commons, there's room for food. How important is <b>food quality</b> to you?`:`How important is <b>food quality</b> to you?`);
       const f=await askScale('Not much','Everything',7); if(f===TAKEOVER) return;
-      profile.food=f; plantFood(f);
+      profile.food=f; if(on3D()) plantFood(f);
+      if(!on3D()){ await say(f>=8?`Then the village grows its own food, together.`:f<=4?`Good to know. Not everyone needs to be a gardener.`:`A healthy middle: a good garden, without the obsession.`,300); return; }
       await say(f>=8?`Then let's plant. That's a food forest around the commons, one of the first ideas on the table.`:f<=4?`A few trees, then. Not everyone needs to be a gardener.`:`A healthy middle: a good garden, without the obsession.`,400);
     },
     async meat(){ await say(`Do you eat meat?`); const m=await askChoice(MEAT_OPTS); if(m===TAKEOVER) return; profile.meat=m; },
@@ -1316,23 +1468,24 @@ async function run(){
   };
   let calls=0; liveCall.inPersonal=true;
   while(true){
-    const next=RESUME_STEPS.find(([,known])=>!known());
+    const next=stepsNow().find(([,known])=>!known());
     if(!next) break;
     if(liveCall.want&&liveCall.due){
       liveCall.due=false;
       const had=calls>0; calls++;
       if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
-      const ok=await agentConversation(had||RESUME_STEPS.some(([,known])=>known()));
+      const ok=await agentConversation(had||stepsNow().some(([,known])=>known()));
       if(agentEndedBy==='user'){ liveCall.want=false; liveCall.offerReturn(); await say(`Of course. Let's carry on right here.`,200); }
       else if(agentEndedBy==='drop'){ await say(ok?`We lost the line, but nothing is lost: I remember everything you told me. Let's carry on right here, and I'll bring our call back as soon as I can.`:`I can't reach our call just now, so let's carry on right here. I'll bring it back as soon as I can.`,300); liveCall.retry(); }
-      else if(agentEndedBy==='done'&&RESUME_STEPS.some(([,known])=>!known())) liveCall.want=false;
+      else if(agentEndedBy==='done'&&stepsNow().some(([,known])=>!known())) liveCall.want=false;
       continue;
     }
     await scripted[next[0]]();
   }
   liveCall.stop(); liveCall.inPersonal=false;
-  if(!stage.land){ showLand(); showVillageZone(); }
   const N=esc(name);
+  if(profile.place!=='nusa-dua'){ await closingCircle(N); return; }
+  if(!stage.land){ showLand(); showVillageZone(); }
 
   /* ---------- 3. Your home ---------- */
   showLabel('lb-vision',false);
@@ -1539,7 +1692,7 @@ async function run(){
         families:profile.families, familiesAnswer:profile.familiesAnswer, privacy:profile.privacy, spaces:profile.spaces.map(k=>SPACES[k]),
         idea:profile.idea||undefined, food:profile.food, meat:profile.meat, meatOk:profile.meatOk, material:sty.name, stylesLiked:profile.stylesLiked, stylesPassed:profile.stylesPassed,
         materials:profile.materials, homeType:profile.homeType, modules:profile.modules, wishes:[...wishes].map(w=>WISH[w]),
-        homeName:profile.homeName||undefined, builderEdits:profile.builderEdits||0, fit:profile.fit, transcript:profile.transcript||undefined, agentConversationId:profile.agentConversationId||undefined,
+        homeName:profile.homeName||undefined, builderEdits:profile.builderEdits||0, fit:profile.fit, villageType:profile.villageType, place:profile.place, placeName:profile.placeName, transcript:profile.transcript||undefined, agentConversationId:profile.agentConversationId||undefined,
         direction:DIRS[((Math.round(spot.a/(Math.PI/4))%8)+8)%8] },
       plan:{ budget, land:P.land, floor:P.floor, storeys:P.storeys, total:P.total }, utm };
   };
@@ -1587,6 +1740,67 @@ async function run(){
     }catch{ if(err) err.textContent='Your connection dropped. Please try again.'; else await say('Your connection dropped. Please try again.'); return false; }
   };
   buttons('open');
+}
+/* Joining the circle (or offering land): Asara keeps their vision and introduces them as their tribe forms. */
+async function closingCircle(N){
+  const offer=profile.place==='offer', l=LAND_BY[profile.place];
+  mapOverview(2400);
+  await say(offer?`${N}, your land could become the place where someone's vision comes true.`
+    :`${N}, here's what happens next. I hold your vision, and as people with a similar dream come forward${l?`, around ${l.name} or anywhere in Bali`:''}, I'll introduce you. Your tribe forms around what you share, not around who pays first.`,500);
+  const j=await say(`The journey:`,200);
+  const ul=document.createElement('ul'); ul.className='journey';
+  ul.innerHTML=offer
+    ?`<li class="now"><b>Offer</b>You're here. Your land and your vision join the circle.</li><li><b>Listen</b>I listen for people whose vision fits your land.</li><li><b>Meet</b>The Asara team introduces you to them.</li><li><b>Co-create</b>Together you shape the village with me.</li><li><b>Build</b>The village takes form on your land.</li>`
+    :`<li class="now"><b>Share</b>You're here. Your vision joins the circle.</li><li><b>Listen</b>I listen for people who dream the same village.</li><li><b>Meet</b>The Asara team introduces you as your tribe forms.</li><li><b>Choose</b>Together you choose the land${l?`: ${l.name}, or another`:''}.</li><li><b>Create</b>You design the village with me, then build it.</li>`;
+  j.appendChild(ul); log.scrollTop=log.scrollHeight;
+  let joined=false, known=null;
+  const utm={}; new URLSearchParams(location.search).forEach((v,k)=>{ if(/^utm_|^(fbclid|gclid|ttclid)$/.test(k)) utm[k]=v.slice(0,200); });
+  const payload=(email,phone)=>({ applicantId, consent:true, stage:offer?'land_offer':'interest', firstName:name, email, phone, utm,
+    profile:{ belief:profile.belief, film:profile.film||undefined, kids:profile.kids, ages:profile.ages||undefined, vision:profile.vision,
+      visionFollowUpQuestion:profile.visionFollowUpQuestion, visionFollowUp:profile.visionFollowUp||undefined, childhood:profile.wish||undefined,
+      villageType:profile.villageType, place:profile.place, placeName:profile.placeName, placeWishes:profile.placeWishes, landOffer:profile.landOffer,
+      families:profile.families, familiesAnswer:profile.familiesAnswer, privacy:profile.privacy, spaces:(profile.spaces||[]).map(k=>SPACES[k]),
+      idea:profile.idea||undefined, food:profile.food, meat:profile.meat, meatOk:profile.meatOk,
+      transcript:profile.transcript||undefined, agentConversationId:profile.agentConversationId||undefined } });
+  const send=async(email,phone,err)=>{
+    try{ const r=await fetch('/api/applications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload(email,phone))});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok){ err.textContent=d.error||'Something went wrong. Please try again.'; return false; } return true; }
+    catch{ err.textContent='Your connection dropped. Please try again.'; return false; }
+  };
+  const buttons=()=>{ actions.innerHTML=''; const r=document.createElement('div'); r.className='row';
+    if(!joined){ const b=button(offer?'Share my land with Asara':'Join the circle'); b.onclick=join; r.append(b); }
+    const g=button('Explore the map','ghost'); g.onclick=()=>mapOverview(1600); r.append(g);
+    actions.append(r); };
+  const join=async()=>{
+    actions.innerHTML=''; me(offer?'Share my land with Asara':'Join the circle');
+    if(!applyOpen){ await say(`The circle opens very soon, ${N}. Come back in a few days, and bring your vision with you.`,200); buttons(); return; }
+    await say(offer?`Where can the Asara team reach you about your land? An email, a WhatsApp number, or both.`:`Where can I reach you when your tribe begins to form? An email, a WhatsApp number, or both.`);
+    const ok=await ask((box,done)=>{
+      const f=document.createElement('form'); f.className='apply-form'; f.noValidate=true;
+      f.innerHTML=`<input type="email" id="apply-email" autocomplete="email" placeholder="Email" aria-label="Email">
+        <input type="tel" id="apply-phone" autocomplete="tel" placeholder="WhatsApp number, with country code" aria-label="WhatsApp number">
+        <label class="check"><input type="checkbox" id="apply-consent"><span>${offer?'I agree that Asara keeps my answers and land details and contacts me about them.':'I agree that Asara keeps my answers and contacts me to introduce me to people who share my vision.'} I can ask for them to be deleted at any time.</span></label>
+        <div class="hint" role="alert"></div>`;
+      const go=button(offer?'Share my land':'Join the circle'); f.append(go);
+      const err=f.querySelector('.hint');
+      f.addEventListener('submit',async e=>{ e.preventDefault();
+        const email=f.querySelector('#apply-email').value.trim(), phone=f.querySelector('#apply-phone').value.trim();
+        if(!email&&!phone){ err.textContent='Add an email or a WhatsApp number so we can reach you.'; return; }
+        if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ err.textContent="That email doesn't look right. Check it and try again."; return; }
+        if(phone&&!/^[+0-9 ()-]{6,32}$/.test(phone)){ err.textContent='Use digits, spaces and an optional + for the WhatsApp number.'; return; }
+        if(!f.querySelector('#apply-consent').checked){ err.textContent='Please tick the box so we can keep your answers.'; return; }
+        go.disabled=true; go.textContent='Sending…'; err.textContent='';
+        if(await send(email,phone,err)){ known={email,phone}; me(email||phone); done(true); } else { go.disabled=false; go.textContent=offer?'Share my land':'Join the circle'; }
+      });
+      box.append(f); setTimeout(()=>f.querySelector('#apply-email').focus(),50);
+    });
+    if(ok===true){ joined=true;
+      await say(offer?`Thank you, ${N}. Your land is with the Asara team now, together with your vision. We'll be in touch.`
+        :`Welcome to the circle, ${N}. Your vision is with me now. When people who dream the same village come forward, I'll bring you together.`,300); }
+    buttons();
+  };
+  buttons();
 }
 $('card-close').onclick=()=>{$('card').classList.remove('on'); idleSpin=0.00003;};
 $('restart').onclick=()=>location.reload();

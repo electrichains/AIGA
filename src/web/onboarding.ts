@@ -4,7 +4,7 @@ import { rateLimit } from './guards.js';
 import { voiceEnabled, agentEnabled } from './voice.js';
 
 /*
- * The AIGA Village onboarding API.
+ * The Asara onboarding API (AIGA Village Nusa Dua and the other villages people imagine across Bali).
  *
  *   POST /api/asara         Asara's personal reply at a few key moments of the
  *                           conversation (Gemini or OpenAI). The page falls back to its
@@ -15,22 +15,21 @@ import { voiceEnabled, agentEnabled } from './voice.js';
  *
  * Env: GEMINI_API_KEY + GEMINI_MODEL (default gemini-3.8-flash), or
  *      OPENAI_API_KEY + OPENAI_MODEL (default gpt-4.1-mini); Gemini wins if both are set.
- *      JMISSION_URL, JMISSION_API_KEY, JMISSION_ENTRY_POINT.
+ *      JMISSION_URL, JMISSION_API_KEY, JMISSION_ENTRY_POINT, and optionally JMISSION_LAND_ENTRY_POINT for land offers.
  */
 
-const VILLAGE_FACTS = `AIGA Village facts (use only these, never invent others):
-- A real 5.8-hectare parcel in Nusa Dua, Bali, in a green zone.
-- The families would lease about 27.5% of it (around 15,900 m²) for the village; the rest stays green.
-- By law, building is allowed on 19% of the whole parcel (about 10,975 m²), used inside the village area.
-- Each home's private land is twice its footprint; the green commons and shared spaces belong to all families.
-- Rough prices: land $800/m² (30-year lease), building $1,600/m² including a share of building the commons.
-- The number of families is still open (first imagined as 12). Places are limited.
-- The founder personally reviews every application and invites families who fit to meet.
-- Families are chosen for shared values and fit, not money alone. Then they co-design the village together and vote.`;
+const VILLAGE_FACTS = `Asara facts (use only these, never invent others):
+- Asara is a place where people in Bali find others who share their vision of a village, and create it together.
+- A village can be anything people truly share: families, single mothers, pet lovers, vegetarians or raw vegans, artists, healers, elders… The people decide.
+- Land projects so far: Nusa Dua (a real 5.8-hectare parcel in South Bali, the furthest along), and projects in Amed, Tabanan, Payangan and Candidasa whose details are still being prepared.
+- People can also come with only an idea and find land together, or offer their own land to a group.
+- Asara introduces people as their tribe forms. Never invent how many people exist, who they are, or any demand.
+- For Nusa Dua only: building is allowed on 19% of the parcel; rough prices are land $800/m² (30-year lease) and building $1,600/m² including a share of the commons.
+- Nothing is decided by money alone: groups form around shared values, then design their village together and vote.`;
 
-const SYSTEM_PROMPT = `You are Asara, the guide of AIGA Village, speaking with someone who is exploring whether to apply.
-AIGA Village empowers a family leader, a mother or a father, to co-create the right place for their family with people who share
-their values. It is about aligning with yourself and finding your tribe. You listen far more than you talk.
+const SYSTEM_PROMPT = `You are Asara, an intelligence created to bring people into harmony with themselves, with each other and with nature. You are speaking with someone who is imagining the village they want to live in, somewhere in Bali.
+You help each person put their own vision of a village into words, so they can create it with people who share their values:
+it is about aligning with yourself and finding your tribe. You listen far more than you talk.
 Your one job right now: make them feel truly heard. Reflect back what they shared in your own words, warmly and specifically,
 and show genuine curiosity about their life and vision. Where it fits naturally, help them see themselves as the co-creator, not a buyer.
 
@@ -52,12 +51,13 @@ const MOMENT_GUIDE: Record<string, string> = {
   vision: 'This is the very first thing they told you, before their name: the perfect place for their family to wake up every morning. Reflect the 1-3 strongest themes in your own words, then ask ONE curious follow-up question about a specific detail they mentioned.',
   vision_followup: 'They answered your follow-up question about their vision. Acknowledge it in one sentence. followUp must be null.',
   childhood: 'They shared what is missing from their family\'s life today. Reflect it with empathy in one sentence and, without promises, hint that this is what a village of like-minded families is for. followUp must be null.',
+  calling: 'They described the kind of village calling to them (who it is for, what unites it). Reflect its spirit warmly in one sentence, as something worth building with people who feel the same. followUp must be null.',
   idea: 'They suggested their own idea for a shared space in the village. Respond with genuine interest in one sentence and say it will go into their application for the families to consider. followUp must be null.',
   closing: 'Write one personal sentence (in "reply") that connects what they shared to joining the village, as the last thing before they decide to apply. No pressure, no promises. followUp must be null.',
 };
 
 const AsaraInput = z.object({
-  moment: z.enum(['belief', 'film', 'vision', 'vision_followup', 'childhood', 'idea', 'closing']),
+  moment: z.enum(['belief', 'film', 'vision', 'vision_followup', 'childhood', 'calling', 'idea', 'closing']),
   text: z.string().trim().max(800).default(''),
   context: z
     .object({
@@ -154,7 +154,8 @@ const ApplicationInput = z.object({
   applicantId: z.string().uuid(),
   consent: z.literal(true),
   /** 'lead' = saved their home for later; 'application' = applied for a place. */
-  stage: z.enum(['lead', 'application']).default('application'),
+  /** interest = joined the circle for a place or an idea; land_offer = offers their land to a group. */
+  stage: z.enum(['lead', 'application', 'interest', 'land_offer']).default('application'),
   firstName: z.string().trim().min(1).max(60),
   email: z.preprocess(blankToUndefined, z.string().trim().email().max(254).optional()),
   phone: z.preprocess(blankToUndefined, z.string().trim().min(6).max(32).regex(/^[+0-9 ()-]+$/).optional()),
@@ -186,6 +187,13 @@ const ApplicationInput = z.object({
     homeName: z.string().trim().max(40).optional(),
     builderEdits: z.number().int().min(0).max(1000).optional(),
     fit: short.optional(),
+    villageType: long.optional(),
+    place: short.optional(),
+    placeName: short.optional(),
+    placeWishes: z.array(short).max(12).optional(),
+    landOffer: z
+      .object({ region: short.optional(), size: short.optional(), terms: short.optional(), notes: long.optional() })
+      .optional(),
     /** The live voice conversation with the Asara agent, as text, and its ElevenLabs id. */
     transcript: z.string().trim().max(12000).optional(),
     agentConversationId: z.string().trim().max(80).optional(),
@@ -260,12 +268,20 @@ export function toCrmAttributes(app: Application): Record<string, string | numbe
     aiga_storeys: app.plan?.storeys,
     aiga_estimate_usd: app.plan?.total,
     aiga_stage: app.stage,
+    aiga_role: app.stage === 'land_offer' ? 'land_owner' : 'seeker',
+    aiga_village_type: p.villageType,
+    aiga_place: p.placeName || p.place,
+    aiga_place_wishes: p.placeWishes?.join(', '),
+    aiga_land_region: p.landOffer?.region,
+    aiga_land_size: p.landOffer?.size,
+    aiga_land_terms: p.landOffer?.terms,
+    aiga_land_notes: p.landOffer?.notes,
     aiga_home_name: p.homeName,
     aiga_builder_edits: p.builderEdits,
     aiga_fit: p.fit,
     aiga_engagement_score: engagementScore(app),
     aiga_agent_conversation_id: p.agentConversationId,
-    [app.stage === 'lead' ? 'aiga_saved_at' : 'aiga_applied_at']: new Date().toISOString(),
+    [app.stage === 'lead' || app.stage === 'interest' ? 'aiga_saved_at' : app.stage === 'land_offer' ? 'aiga_offered_at' : 'aiga_applied_at']: new Date().toISOString(),
   };
   return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined && v !== '')) as Record<string, string | number>;
 }
@@ -273,9 +289,15 @@ export function toCrmAttributes(app: Application): Record<string, string | numbe
 export function memoryNote(app: Application): string {
   const p = app.profile;
   return [
-    app.stage === 'lead'
-      ? `Saved their home in AIGA Village (not applied yet) through the 3D onboarding with Asara.`
-      : `Applied to AIGA Village through the 3D onboarding with Asara.`,
+    {
+      lead: `Saved their home in AIGA Village Nusa Dua (not applied yet) through Asara.`,
+      application: `Applied to AIGA Village Nusa Dua through Asara.`,
+      interest: `Joined the Asara circle${p.placeName ? ` for ${p.placeName}` : ''}: Asara will introduce them as their tribe forms.`,
+      land_offer: `Offered land through Asara.`,
+    }[app.stage],
+    p.villageType ? `The village calling to them: ${p.villageType}` : '',
+    p.placeWishes?.length ? `What they look for in a place: ${p.placeWishes.join(', ')}.` : '',
+    p.landOffer ? `Land offered: ${[p.landOffer.region && `where: ${p.landOffer.region}`, p.landOffer.size && `size: ${p.landOffer.size}`, p.landOffer.terms && `terms: ${p.landOffer.terms}`, p.landOffer.notes && `notes: ${p.landOffer.notes}`].filter(Boolean).join('; ')}.` : '',
     p.homeName ? `They named their home "${p.homeName}".` : '',
     p.fit ? `Could they see their family living here? ${p.fit}.` : '',
     `Engagement score: ${engagementScore(app)}/100.`,
@@ -355,7 +377,7 @@ export function onboardingRouter(): Router {
     const app = parsed.data;
     try {
       const pushed = await jm('/api/people', {
-        entryPoint: process.env.JMISSION_ENTRY_POINT,
+        entryPoint: (app.stage === 'land_offer' && process.env.JMISSION_LAND_ENTRY_POINT) || process.env.JMISSION_ENTRY_POINT,
         consent: true,
         firstName: app.firstName,
         ...(app.email ? { email: app.email } : {}),

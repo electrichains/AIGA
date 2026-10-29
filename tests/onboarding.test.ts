@@ -90,6 +90,25 @@ describe('Applications to J-Mission', () => {
     assert.match(memoryNote(app), /conversation with Asara \(voice\):\nAsara: Hello\nThem: We dream of a big table/);
   });
 
+  test('joining the circle carries the village type and place', () => {
+    const app = ApplicationInput.parse({ ...sample, stage: 'interest', plan: undefined, profile: { vision: 'A village for single mothers by the sea', villageType: 'Single mothers raising kids together', place: 'amed', placeName: 'Amed' } });
+    const attrs = toCrmAttributes(app);
+    assert.equal(attrs.aiga_village_type, 'Single mothers raising kids together');
+    assert.equal(attrs.aiga_place, 'Amed');
+    assert.equal(attrs.aiga_role, 'seeker');
+    assert.ok(attrs.aiga_saved_at);
+    assert.match(memoryNote(app), /Joined the Asara circle for Amed/);
+  });
+
+  test('a land offer is tagged as a land owner with its details', () => {
+    const app = ApplicationInput.parse({ ...sample, stage: 'land_offer', plan: undefined, profile: { vision: 'Share my land with vegan families', landOffer: { region: 'Sidemen', size: '1 hectare', terms: 'Long lease' } } });
+    const attrs = toCrmAttributes(app);
+    assert.equal(attrs.aiga_role, 'land_owner');
+    assert.equal(attrs.aiga_land_region, 'Sidemen');
+    assert.ok(attrs.aiga_offered_at);
+    assert.match(memoryNote(app), /Land offered: where: Sidemen; size: 1 hectare; terms: Long lease/);
+  });
+
   test('the memory note carries the vision and the sketch', () => {
     const note = memoryNote(ApplicationInput.parse(sample));
     assert.match(note, /Their ideal village: Kids running/);
