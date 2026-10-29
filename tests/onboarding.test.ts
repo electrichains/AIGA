@@ -112,6 +112,22 @@ describe('Applications to J-Mission', () => {
     assert.match(memoryNote(app), /Land offered: where: Sidemen; size: 1 hectare; terms: Long lease/);
   });
 
+  test('a supplier offer is tagged as a supplier with what they offer', () => {
+    const app = ApplicationInput.parse({ ...sample, stage: 'supplier', plan: undefined, profile: { supplier: {
+      offers: ['Construction or a building team', 'Building materials'],
+      details: { 'Construction or a building team': 'Bamboo builders, a team of 12', 'Building materials': 'Reclaimed teak' },
+      business: 'Bambu Kita', area: 'East Bali', terms: ['Paid work'], links: 'instagram.com/bambukita' } } });
+    const attrs = toCrmAttributes(app);
+    assert.equal(attrs.aiga_role, 'supplier');
+    assert.equal(attrs.aiga_supplier_offers, 'Construction or a building team, Building materials');
+    assert.equal(attrs.aiga_supplier_business, 'Bambu Kita');
+    assert.match(String(attrs.aiga_supplier_details), /Building materials: Reclaimed teak/);
+    assert.ok(attrs.aiga_offered_at);
+    const note = memoryNote(app);
+    assert.match(note, /supplier gate: Construction or a building team, Building materials/);
+    assert.match(note, /Where they work: East Bali/);
+  });
+
   test('the memory note carries the vision and the sketch', () => {
     const note = memoryNote(ApplicationInput.parse(sample));
     assert.match(note, /Their ideal village: Kids running/);

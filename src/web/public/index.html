@@ -56,6 +56,7 @@ body{background:var(--night);color:var(--text);font-family:var(--body);font-size
 .ghost{font:500 14px var(--body);color:var(--text);background:transparent;border:1px solid var(--line);border-radius:99px;padding:10px 18px;cursor:pointer}
 .ghost:hover{border-color:var(--sun)}
 #arrival .btn{align-self:flex-start}
+#arrival .doors{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
 
 /* guide panel */
 #guide{position:fixed;z-index:4;top:calc(env(safe-area-inset-top,0px) + 70px);right:16px;bottom:16px;width:var(--panel-w);display:flex;flex-direction:column;background:rgba(15,28,24,.78);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:22px;transform:translateX(calc(100% + 30px));transition:transform 1s cubic-bezier(.2,.8,.2,1)}
@@ -238,7 +239,10 @@ input::placeholder{color:#6f786b}
 <section id="arrival">
   <div class="eyebrow">Bali · Nusa Dua · Amed · Candidasa · Payangan · Tabanan · your own idea</div>
   <h1>Envision your village. <em>Find your tribe.</em></h1>
-  <button class="btn" id="enter">Walk the land</button>
+  <div class="doors">
+    <button class="btn" id="enter">Walk the land</button>
+    <button class="ghost" id="offer-enter">I have something to offer</button>
+  </div>
 </section>
 
 <aside id="guide" aria-label="Conversation with Asara">
@@ -732,7 +736,9 @@ async function askAsara(moment,text,extra={}){
 }
 const profile={privacy:5,spaces:[]};
 /* "Your village profile": how much of their picture they've filled in. People like to finish what they start. */
+let offerSteps=null;   // set during the supplier gate, so the bar shows their offer instead of a village profile
 function updateProgress(){
+  if(offerSteps) return offerProgress(offerSteps.done,offerSteps.total);
   // The steps that apply to their place, plus the home for Nusa Dua; before they choose a place, assume a typical path.
   const st=stepsNow(), nd=profile.place==='nusa-dua';
   const home=nd?[profile.stylesLiked,profile.materials,profile.modules,profile.homeName!==undefined||undefined,profile.budget,profile.fit]:[];
@@ -875,7 +881,12 @@ function trim(p,target){ let lo=.03,hi=1,f=1; const da=(p.a1-p.a0)/(p.outer.leng
   const road=Math.round(Math.min(...roadPts.map(([x,z])=>Math.hypot(x-cen[0],z-cen[1]))));
   return {...p,outer,ring,area:Math.round(areaAt(f)),cen,rm,road,hub:Math.round(rm-HUB_R)}; }
 
-$('enter').addEventListener('click',run,{once:true});
+/* Two doors: dreamers walk the land; suppliers offer what they have. ?offer (a link to share with builders and
+   landowners) puts the supplier door first. */
+const startWith=fn=>()=>{ $('enter').disabled=$('offer-enter').disabled=true; fn(); };
+$('enter').addEventListener('click',startWith(()=>run()),{once:true});
+$('offer-enter').addEventListener('click',startWith(()=>runSupplier()),{once:true});
+if(new URLSearchParams(location.search).has('offer')){ $('offer-enter').className='btn'; $('enter').className='ghost'; $('offer-enter').parentNode.prepend($('offer-enter')); }
 
 /* Home styles for the swipe deck. A photo at images/styles/<key>.jpg replaces the illustration automatically. */
 const STYLES=[
@@ -1278,19 +1289,11 @@ async function keepAwake(on){
   }catch{ wakeLock=null; }
 }
 document.addEventListener('visibilitychange',()=>{ if(wantAwake&&document.visibilityState==='visible') keepAwake(true); });
-async function run(){
-  unlockVoice(); keepAwake(true);
-  $('arrival').classList.add('gone');
-  $('guide').classList.add('open'); setTimeout(resize,1000);
-  mapOverview(RM?0:3200);
-
-  /* ---------- 1. Listen first: a short hook, then their vision, then who they are ---------- */
-  await say("Hello, I'm <b>Asara</b>.",200);
-  await say("Every village here begins as a <b>vision</b>, and grows around the people who share it.",500);
-  await say("So before I show you anything, I want to listen.",400);
+/* How they'd like to talk: live (the agent, when useAgent), typed, or offline. Asked inside the conversation. */
+async function consentStep(useAgent){
   if(aiAvailable||canListen()){
     const talk=canListen();
-    if(talk&&agentAvailable) import('/vendor/elevenlabs-client.js').catch(()=>{});
+    if(talk&&agentAvailable&&useAgent) import('/vendor/elevenlabs-client.js').catch(()=>{});
     await say(talk?`We can simply talk, out loud, like two people, or you can type. I'm an AI, so what you share is processed by AI services, and nothing is saved unless you choose to apply.`
                   :`I'm an AI, so what you write is processed by an AI service so I can answer you personally. Nothing is saved unless you choose to apply.`);
     const pick=await ask((box,done)=>{ const row=document.createElement('div'); row.className='row';
@@ -1303,9 +1306,21 @@ async function run(){
       if(pick.v==='talk'){
         let micOk=true; try{ await pick.mic; }catch{ micOk=false; }
         if(!micOk) await say(`I can't reach your microphone, so let's write for now. You can tap the mic any time if you change your mind.`,300);
-        else{ talkMode=true; liveCall.want=agentAvailable; if(!liveCall.want) await say(`Lovely. Just talk whenever you're ready, I'll know when you've finished.`,200); }
+        else{ talkMode=true; liveCall.want=agentAvailable&&useAgent; if(!liveCall.want) await say(`Lovely. Just talk whenever you're ready, I'll know when you've finished.`,200); }
       } }
   }
+}
+async function run(){
+  unlockVoice(); keepAwake(true);
+  $('arrival').classList.add('gone');
+  $('guide').classList.add('open'); setTimeout(resize,1000);
+  mapOverview(RM?0:3200);
+
+  /* ---------- 1. Listen first: a short hook, then their vision, then who they are ---------- */
+  await say("Hello, I'm <b>Asara</b>.",200);
+  await say("Every village here begins as a <b>vision</b>, and grows around the people who share it.",500);
+  await say("So before I show you anything, I want to listen.",400);
+  await consentStep(true);
 
   /* The personal part as steps. The live Asara agent takes them while the call is up; if it drops, the page
      carries on with the same steps and keeps bringing the call back, which picks up at the next open step. */
@@ -1370,15 +1385,8 @@ async function run(){
       profile.placeWishes=w.map(k=>PLACE_WISH[k]); updateProgress();
     },
     async offer(){
-      await say(`Tell me about your land. Where is it?`);
-      const region=await askText('e.g. Sidemen, near the river',{cta:'Continue'}); if(region===TAKEOVER) return;
-      await say(`About how big is it?`);
-      const size=await askChoice(['Under 1,000 m²','1,000 to 5,000 m²','Half a hectare to 2 hectares','More than 2 hectares','Not sure']); if(size===TAKEOVER) return;
-      await say(`How would you like to share it?`);
-      const terms=await askChoice(['Sell','Long-term lease','Join as a co-founder','Open to ideas']); if(terms===TAKEOVER) return;
-      await say(`Anything else the right people should know? Access, water, views, what you hope it becomes…`);
-      const notes=await askText('Optional',{optional:true,max:600}); if(notes===TAKEOVER) return;
-      profile.landOffer={region,size,terms,...(notes?{notes}:{})}; updateProgress();
+      const o=await landQuestions(); if(o===TAKEOVER) return;
+      profile.landOffer=o; updateProgress();
       await say(`Thank you. I'll keep your land in mind for people whose vision fits it.`,300);
     },
     async contribution(){
@@ -1690,7 +1698,7 @@ async function run(){
     return { applicantId, consent:true, stage, firstName:name, email, phone,
       profile:{ belief:profile.belief, film:profile.film||undefined, kids:profile.kids, ages:profile.ages||undefined, vision:profile.vision,
         visionFollowUpQuestion:profile.visionFollowUpQuestion, visionFollowUp:profile.visionFollowUp||undefined, childhood:profile.wish||undefined,
-        families:profile.families, familiesAnswer:profile.familiesAnswer, privacy:profile.privacy, spaces:profile.spaces.map(k=>SPACES[k]),
+        families:profile.families, familiesAnswer:profile.familiesAnswer, privacy:profile.privacyAnswered?profile.privacy:undefined, spaces:profile.spaces.map(k=>SPACES[k]),
         idea:profile.idea||undefined, food:profile.food, meat:profile.meat, meatOk:profile.meatOk, material:sty.name, stylesLiked:profile.stylesLiked, stylesPassed:profile.stylesPassed,
         materials:profile.materials, homeType:profile.homeType, modules:profile.modules, wishes:[...wishes].map(w=>WISH[w]),
         homeName:profile.homeName||undefined, builderEdits:profile.builderEdits||0, fit:profile.fit, villageType:profile.villageType, contributions:profile.contributions, contributionNote:profile.contributionNote, investRange:profile.investRange, place:profile.place, placeName:profile.placeName, transcript:profile.transcript||undefined, agentConversationId:profile.agentConversationId||undefined,
@@ -1743,21 +1751,92 @@ async function run(){
   };
   buttons('open');
 }
+async function landQuestions(){
+  await say(`Tell me about your land. Where is it?`);
+  const region=await askText('e.g. Sidemen, near the river',{cta:'Continue'}); if(region===TAKEOVER) return TAKEOVER;
+  await say(`About how big is it?`);
+  const size=await askChoice(['Under 1,000 m²','1,000 to 5,000 m²','Half a hectare to 2 hectares','More than 2 hectares','Not sure']); if(size===TAKEOVER) return TAKEOVER;
+  await say(`How would you like to share it?`);
+  const terms=await askChoice(['Sell','Long-term lease','Join as a co-founder','Open to ideas']); if(terms===TAKEOVER) return TAKEOVER;
+  await say(`Anything else the right people should know? Access, water, views, what you hope it becomes…`);
+  const notes=await askText('Optional',{optional:true,max:600}); if(notes===TAKEOVER) return TAKEOVER;
+  return {region,size,terms,...(notes?{notes}:{})};
+}
+
+/* The supplier gate: people offer land, building work, materials, skills or services. Asara learns what Bali can
+   offer, so the team can match it with the villages people dream of. Scripted on the page, no live call. */
+const SUPPLY={land:'Land',build:'Construction or a building team',materials:'Building materials',design:'Architecture or design',energy:'Solar, water or energy',craft:'Crafts: bamboo, wood, stone',garden:'Gardens, permaculture or landscaping',services:'Other skills or services'};
+const SUPPLY_ASK={
+  build:['Tell me about your building work: what do you build, how big is your team, and what have you built before?','e.g. Bamboo and timber homes, a team of 12, 30 villas around Ubud'],
+  materials:['Which materials can you supply, and roughly how much?','e.g. Reclaimed teak, volcanic stone, bamboo by the truckload'],
+  design:[`What do you design, and what's your approach?`,'e.g. Natural architecture, passive cooling, earth and bamboo'],
+  energy:['What can you bring: solar, wells, water filtration, rainwater, something else?','e.g. Off-grid solar with batteries, installed and maintained'],
+  craft:['Tell me about your craft.','e.g. Hand-carved doors and furniture from salvaged wood'],
+  garden:['What do you grow or shape?','e.g. Food forests and permaculture design, with our own nursery'],
+  services:['What skill or service would you offer?','e.g. Plumbing, legal help with land leases, project management'],
+};
+const SUPPLY_AREAS=['All of Bali','South Bali','Ubud and central Bali','East Bali','North Bali','West Bali','From outside Bali'];
+const SUPPLY_TERMS={paid:'Paid work or sales',exchange:'In exchange for a home or land in a village',partner:'As a partner or co-founder',gift:'As a gift or volunteer',open:'Open to ideas'};
+function offerProgress(done,total){ offerSteps={done,total}; const pct=Math.min(100,Math.round(done/Math.max(1,total)*100));
+  $('prog-fill').style.width=pct+'%'; $('prog-txt').textContent=`Your offer · ${pct}%`; }
+async function runSupplier(){
+  unlockVoice(); keepAwake(true);
+  $('arrival').classList.add('gone');
+  $('guide').classList.add('open'); setTimeout(resize,1000);
+  mapOverview(RM?0:3200); offerProgress(0,1);
+  await say("Hello, I'm <b>Asara</b>.",200);
+  await say("Villages here are built by people, with what each of them brings. I'm learning what Bali can offer: <b>land, hands, materials and skills</b>, so I can match them with the villages people dream of.",500);
+  await consentStep(false);
+  await say(`What would you like to offer? Choose everything that fits.`);
+  let kinds=await askMulti(SUPPLY,'This is what I offer');
+  if(!kinds.length) kinds=['services'];
+  const total=kinds.length+5; let done=1; offerProgress(done,total);
+  await say(`Wonderful. Who am I speaking with? Your first name is enough.`);
+  name=(await askText('Your first name')).slice(0,30)||'friend'; offerProgress(++done,total);
+  await say(`And your business or team, if you have one?`);
+  const business=await askText('Optional',{optional:true,max:120});
+  const sup={offers:kinds.map(k=>SUPPLY[k]),details:{}};
+  if(business) sup.business=business;
+  for(const k of kinds){
+    if(k==='land') profile.landOffer=await landQuestions();
+    else{ const [q,ph]=SUPPLY_ASK[k]; await say(q); sup.details[SUPPLY[k]]=await askText(ph,{cta:'Share',max:600}); }
+    offerProgress(++done,total);
+  }
+  const o=profile.landOffer, said=[o&&`Land: ${[o.region,o.size,o.terms].join(', ')}`,...Object.entries(sup.details).map(([k,v])=>`${k}: ${v}`)].filter(Boolean).join('. ');
+  const ai=await askAsara('supplier',said.slice(0,800));
+  await say(ai?esc(ai.reply):`Thank you. That's exactly what turns a vision into walls, roofs and gardens.`,400);
+  if(!(kinds.length===1&&kinds[0]==='land')){
+    await say(`Where in Bali do you work?`);
+    sup.area=await askChoice(SUPPLY_AREAS);
+  }
+  offerProgress(++done,total);
+  await say(`How would you like to take part? Here people can be paid, trade their work for a place in a village, or join as partners.`);
+  const t=await askMulti(SUPPLY_TERMS,`That's how`); if(t.length) sup.terms=t.map(k=>SUPPLY_TERMS[k]);
+  offerProgress(++done,total);
+  await say(`Do you have a website, an Instagram or a portfolio I can look at?`);
+  const links=await askText('Optional',{optional:true,max:300}); if(links) sup.links=links;
+  profile.supplier=sup; offerProgress(total,total);
+  await closingCircle(esc(name),'supplier');
+}
+
 /* Sharing and supporting. Every vision spreads further when people share it; the link carries their id as ?ref=,
    so J-Mission shows who brought whom. The contribution is voluntary and never touches anyone's place or selection. */
-const shareLink=()=>`${location.origin}/?ref=${applicantId}`;
-const shareText=`I just shared my vision of a village in Bali with Asara. If you dream of a new way of living too, share yours: the more of us believe in the same vision, the sooner it comes true.`;
+let shareKind='circle';   // suppliers share the supplier door (?offer) with other builders, makers and landowners
+const shareLink=()=>`${location.origin}/?${shareKind==='supplier'?'offer&':''}ref=${applicantId}`;
+const shareText=()=>shareKind==='supplier'?`I just offered what I can bring to Asara, which matches land, builders, materials and skills with the villages people dream of in Bali. If you can help build them too, offer yours:`:`I just shared my vision of a village in Bali with Asara. If you dream of a new way of living too, share yours: the more of us believe in the same vision, the sooner it comes true.`;
 async function shareAsara(){
-  if(navigator.share){ try{ await navigator.share({title:'Asara · Find your tribe in Bali',text:shareText,url:shareLink()}); return 'shared'; }catch(e){ if(e&&e.name==='AbortError') return 'cancelled'; } }
+  if(navigator.share){ try{ await navigator.share({title:'Asara · Find your tribe in Bali',text:shareText(),url:shareLink()}); return 'shared'; }catch(e){ if(e&&e.name==='AbortError') return 'cancelled'; } }
   return ask((box,done)=>{ const r=document.createElement('div'); r.className='row';
-    const wa=document.createElement('a'); wa.className='btn small'; wa.href=`https://wa.me/?text=${encodeURIComponent(shareText+' '+shareLink())}`; wa.target='_blank'; wa.rel='noopener'; wa.textContent='Share on WhatsApp'; wa.onclick=()=>setTimeout(()=>done('whatsapp'),300);
+    const wa=document.createElement('a'); wa.className='btn small'; wa.href=`https://wa.me/?text=${encodeURIComponent(shareText()+' '+shareLink())}`; wa.target='_blank'; wa.rel='noopener'; wa.textContent='Share on WhatsApp'; wa.onclick=()=>setTimeout(()=>done('whatsapp'),300);
     const cp=button('Copy the link','ghost'); cp.type='button'; cp.onclick=async()=>{ try{ await navigator.clipboard.writeText(shareLink()); cp.textContent='Copied'; }catch{ cp.textContent=shareLink(); } setTimeout(()=>done('copied'),900); };
     const no=button('Maybe later','skip'); no.type='button'; no.onclick=()=>done('later');
     r.append(wa,cp,no); box.append(r); });
 }
 function shareButton(restore){ const b=button('Share Asara','ghost'); b.type='button'; b.onclick=async()=>{ await shareAsara(); restore(); }; return b; }
-async function shareAndSupport(N){
-  await say(`${N}, one more thing. A village like yours comes true faster when more people believe in the same vision. If someone you love dreams of a new way of living, would you share Asara with them?`,300);
+async function shareAndSupport(N,kind){
+  shareKind=kind||'circle';
+  await say(kind==='supplier'?`${N}, one more thing. Do you know other builders, makers or landowners who'd love to help villages come true? The more Asara knows, the more dreams it can match. Would you share it with them?`
+    :`${N}, one more thing. A village like yours comes true faster when more people believe in the same vision. If someone you love dreams of a new way of living, would you share Asara with them?`,300);
   const res=await shareAsara();
   if(res==='shared'||res==='whatsapp'||res==='copied') await say(`Thank you. Every person who shares a vision brings it closer.`,300);
   if(!contributeUrl) return;
@@ -1768,25 +1847,36 @@ async function shareAndSupport(N){
     const no=button('Not now','skip'); no.type='button'; no.onclick=()=>{ me('Not now'); done('no'); };
     r.append(go,no); box.append(r); }).then(v=>v==='yes'?say(`Thank you, from the bottom of my circuits. Together we keep the dream alive.`,200):say(`Of course. Your vision is already a gift.`,200));
 }
-/* Joining the circle (or offering land): Asara keeps their vision and introduces them as their tribe forms. */
-async function closingCircle(N){
-  const offer=profile.place==='offer', l=LAND_BY[profile.place];
+/* Joining the circle, offering land, or offering as a supplier: Asara keeps what they shared and introduces them
+   as tribes and villages form. */
+async function closingCircle(N,kind=profile.place==='offer'?'land':'circle'){
+  shareKind=kind;
+  const offer=kind==='land', sup=kind==='supplier', l=LAND_BY[profile.place];
+  const T={
+    cta:sup?'Send my offer to Asara':offer?'Share my land with Asara':'Join the circle',
+    formCta:sup?'Send my offer':offer?'Share my land':'Join the circle',
+    reach:sup?`Where can the Asara team reach you about your offer? An email, a WhatsApp number, or both.`:offer?`Where can the Asara team reach you about your land? An email, a WhatsApp number, or both.`:`Where can I reach you when your tribe begins to form? An email, a WhatsApp number, or both.`,
+    consent:sup?'I agree that Asara keeps my answers and offer and contacts me about them.':offer?'I agree that Asara keeps my answers and land details and contacts me about them.':'I agree that Asara keeps my answers and contacts me to introduce me to people who share my vision.',
+    thanks:sup?`Thank you, ${N}. Your offer is with the Asara team now. When a village needs what you bring, we'll be in touch.`:offer?`Thank you, ${N}. Your land is with the Asara team now, together with your vision. We'll be in touch.`:`Welcome to the circle, ${N}. Your vision is with me now. When people who dream the same village come forward, I'll bring you together.`,
+  };
   mapOverview(2400);
-  await say(offer?`${N}, your land could become the place where someone's vision comes true.`
+  await say(sup?`${N}, what you offer could be what turns someone's vision into a real village.`:offer?`${N}, your land could become the place where someone's vision comes true.`
     :`${N}, here's what happens next. I hold your vision, and as people with a similar dream come forward${l?`, around ${l.name} or anywhere in Bali`:''}, I'll introduce you. Your tribe forms around what you share, not around who pays first.`,500);
   const j=await say(`The journey:`,200);
   const ul=document.createElement('ul'); ul.className='journey';
-  ul.innerHTML=offer
+  ul.innerHTML=sup
+    ?`<li class="now"><b>Offer</b>You're here. What you bring joins Asara.</li><li><b>Learn</b>I learn what Bali can offer: land, hands, materials, skills.</li><li><b>Match</b>I match it with the villages people dream of.</li><li><b>Meet</b>The Asara team introduces you to them.</li><li><b>Build</b>Together you make the village real.</li>`
+    :offer
     ?`<li class="now"><b>Offer</b>You're here. Your land and your vision join the circle.</li><li><b>Listen</b>I listen for people whose vision fits your land.</li><li><b>Meet</b>The Asara team introduces you to them.</li><li><b>Co-create</b>Together you shape the village with me.</li><li><b>Build</b>The village takes form on your land.</li>`
     :`<li class="now"><b>Share</b>You're here. Your vision joins the circle.</li><li><b>Listen</b>I listen for people who dream the same village.</li><li><b>Meet</b>The Asara team introduces you as your tribe forms.</li><li><b>Choose</b>Together you choose the land${l?`: ${l.name}, or another`:''}.</li><li><b>Create</b>You design the village with me, then build it.</li>`;
   j.appendChild(ul); log.scrollTop=log.scrollHeight;
   let joined=false, known=null;
   const utm={}; new URLSearchParams(location.search).forEach((v,k)=>{ if(/^utm_|^(fbclid|gclid|ttclid|ref)$/.test(k)) utm[k]=v.slice(0,200); });
-  const payload=(email,phone)=>({ applicantId, consent:true, stage:offer?'land_offer':'interest', firstName:name, email, phone, utm,
+  const payload=(email,phone)=>({ applicantId, consent:true, stage:sup?'supplier':offer?'land_offer':'interest', firstName:name, email, phone, utm,
     profile:{ belief:profile.belief, film:profile.film||undefined, kids:profile.kids, ages:profile.ages||undefined, vision:profile.vision,
       visionFollowUpQuestion:profile.visionFollowUpQuestion, visionFollowUp:profile.visionFollowUp||undefined, childhood:profile.wish||undefined,
-      villageType:profile.villageType, contributions:profile.contributions, contributionNote:profile.contributionNote, investRange:profile.investRange, place:profile.place, placeName:profile.placeName, placeWishes:profile.placeWishes, landOffer:profile.landOffer,
-      families:profile.families, familiesAnswer:profile.familiesAnswer, privacy:profile.privacy, spaces:(profile.spaces||[]).map(k=>SPACES[k]),
+      villageType:profile.villageType, contributions:profile.contributions, contributionNote:profile.contributionNote, investRange:profile.investRange, place:profile.place, placeName:profile.placeName, placeWishes:profile.placeWishes, landOffer:profile.landOffer, supplier:profile.supplier,
+      families:profile.families, familiesAnswer:profile.familiesAnswer, privacy:profile.privacyAnswered?profile.privacy:undefined, spaces:(profile.spaces||[]).map(k=>SPACES[k]),
       idea:profile.idea||undefined, food:profile.food, meat:profile.meat, meatOk:profile.meatOk,
       transcript:profile.transcript||undefined, agentConversationId:profile.agentConversationId||undefined } });
   const send=async(email,phone,err)=>{
@@ -1796,20 +1886,20 @@ async function closingCircle(N){
     catch{ err.textContent='Your connection dropped. Please try again.'; return false; }
   };
   const buttons=()=>{ actions.innerHTML=''; const r=document.createElement('div'); r.className='row';
-    if(!joined){ const b=button(offer?'Share my land with Asara':'Join the circle'); b.onclick=join; r.append(b); }
+    if(!joined){ const b=button(T.cta); b.onclick=join; r.append(b); }
     const g=button('Explore the map','ghost'); g.onclick=()=>mapOverview(1600); r.append(g,shareButton(buttons));
     actions.append(r); };
   const join=async()=>{
-    actions.innerHTML=''; me(offer?'Share my land with Asara':'Join the circle');
-    if(!applyOpen){ await say(`The circle opens very soon, ${N}. Come back in a few days, and bring your vision with you.`,200); buttons(); return; }
-    await say(offer?`Where can the Asara team reach you about your land? An email, a WhatsApp number, or both.`:`Where can I reach you when your tribe begins to form? An email, a WhatsApp number, or both.`);
+    actions.innerHTML=''; me(T.cta);
+    if(!applyOpen){ await say(sup?`Offers open very soon, ${N}. Come back in a few days.`:`The circle opens very soon, ${N}. Come back in a few days, and bring your vision with you.`,200); buttons(); return; }
+    await say(T.reach);
     const ok=await ask((box,done)=>{
       const f=document.createElement('form'); f.className='apply-form'; f.noValidate=true;
       f.innerHTML=`<input type="email" id="apply-email" autocomplete="email" placeholder="Email" aria-label="Email">
         <input type="tel" id="apply-phone" autocomplete="tel" placeholder="WhatsApp number, with country code" aria-label="WhatsApp number">
-        <label class="check"><input type="checkbox" id="apply-consent"><span>${offer?'I agree that Asara keeps my answers and land details and contacts me about them.':'I agree that Asara keeps my answers and contacts me to introduce me to people who share my vision.'} I can ask for them to be deleted at any time.</span></label>
+        <label class="check"><input type="checkbox" id="apply-consent"><span>${T.consent} I can ask for them to be deleted at any time.</span></label>
         <div class="hint" role="alert"></div>`;
-      const go=button(offer?'Share my land':'Join the circle'); f.append(go);
+      const go=button(T.formCta); f.append(go);
       const err=f.querySelector('.hint');
       f.addEventListener('submit',async e=>{ e.preventDefault();
         const email=f.querySelector('#apply-email').value.trim(), phone=f.querySelector('#apply-phone').value.trim();
@@ -1818,14 +1908,13 @@ async function closingCircle(N){
         if(phone&&!/^[+0-9 ()-]{6,32}$/.test(phone)){ err.textContent='Use digits, spaces and an optional + for the WhatsApp number.'; return; }
         if(!f.querySelector('#apply-consent').checked){ err.textContent='Please tick the box so we can keep your answers.'; return; }
         go.disabled=true; go.textContent='Sending…'; err.textContent='';
-        if(await send(email,phone,err)){ known={email,phone}; me(email||phone); done(true); } else { go.disabled=false; go.textContent=offer?'Share my land':'Join the circle'; }
+        if(await send(email,phone,err)){ known={email,phone}; me(email||phone); done(true); } else { go.disabled=false; go.textContent=T.formCta; }
       });
       box.append(f); setTimeout(()=>f.querySelector('#apply-email').focus(),50);
     });
     if(ok===true){ joined=true;
-      await say(offer?`Thank you, ${N}. Your land is with the Asara team now, together with your vision. We'll be in touch.`
-        :`Welcome to the circle, ${N}. Your vision is with me now. When people who dream the same village come forward, I'll bring you together.`,300);
-      await shareAndSupport(N); }
+      await say(T.thanks,300);
+      await shareAndSupport(N,kind); }
     buttons();
   };
   buttons();

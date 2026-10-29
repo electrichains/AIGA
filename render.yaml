@@ -41,6 +41,9 @@ services:
       # Optional: a separate J-Mission entry point for land offers
       - key: JMISSION_LAND_ENTRY_POINT
         sync: false
+      # Optional: a J-Mission entry point for the supplier gate (land, construction, materials, skills, services)
+      - key: JMISSION_SUPPLIER_ENTRY_POINT
+        sync: false
       # Applications go to J-Mission through an "api" entry point of the AIGA Village business
       - key: JMISSION_URL
         value: https://j-mission.onrender.com

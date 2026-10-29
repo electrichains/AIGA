@@ -56,13 +56,14 @@ const MOMENT_GUIDE: Record<string, string> = {
   vision_followup: 'They answered your follow-up question about their vision. Acknowledge it in one sentence. followUp must be null.',
   childhood: 'They shared what is missing from their family\'s life today. Reflect it with empathy in one sentence and, without promises, hint that this is what a village of like-minded families is for. followUp must be null.',
   contribution: 'They shared what they could bring to a village (skills, work, land, money or something else). Honour it warmly in one sentence as a real contribution to the village, whatever its size. followUp must be null.',
+  supplier: 'They are offering something to build villages with (land, construction work, materials, skills or services) and just described it. Thank them warmly in one sentence, name a concrete detail of what they offer, and say how it can help someone\'s vision become real, without promising any work, sale or match. followUp must be null.',
   calling: 'They described the kind of village calling to them (who it is for, what unites it). Reflect its spirit warmly in one sentence, as something worth building with people who feel the same. followUp must be null.',
   idea: 'They suggested their own idea for a shared space in the village. Respond with genuine interest in one sentence and say it will go into their application for the families to consider. followUp must be null.',
   closing: 'Write one personal sentence (in "reply") that connects what they shared to joining the village, as the last thing before they decide to apply. No pressure, no promises. followUp must be null.',
 };
 
 const AsaraInput = z.object({
-  moment: z.enum(['belief', 'film', 'vision', 'vision_followup', 'childhood', 'calling', 'contribution', 'idea', 'closing']),
+  moment: z.enum(['belief', 'film', 'vision', 'vision_followup', 'childhood', 'calling', 'contribution', 'supplier', 'idea', 'closing']),
   text: z.string().trim().max(800).default(''),
   context: z
     .object({
@@ -159,8 +160,9 @@ const ApplicationInput = z.object({
   applicantId: z.string().uuid(),
   consent: z.literal(true),
   /** 'lead' = saved their home for later; 'application' = applied for a place. */
-  /** interest = joined the circle for a place or an idea; land_offer = offers their land to a group. */
-  stage: z.enum(['lead', 'application', 'interest', 'land_offer']).default('application'),
+  /** interest = joined the circle for a place or an idea; land_offer = offers their land to a group;
+      supplier = offers land, building work, materials, skills or services through the supplier gate. */
+  stage: z.enum(['lead', 'application', 'interest', 'land_offer', 'supplier']).default('application'),
   firstName: z.string().trim().min(1).max(60),
   email: z.preprocess(blankToUndefined, z.string().trim().email().max(254).optional()),
   phone: z.preprocess(blankToUndefined, z.string().trim().min(6).max(32).regex(/^[+0-9 ()-]+$/).optional()),
@@ -201,6 +203,17 @@ const ApplicationInput = z.object({
     placeWishes: z.array(short).max(12).optional(),
     landOffer: z
       .object({ region: short.optional(), size: short.optional(), terms: short.optional(), notes: long.optional() })
+      .optional(),
+    /** What a supplier offers: the kinds (land, construction, materials…), a description of each, and how they'd work. */
+    supplier: z
+      .object({
+        offers: z.array(short).max(12),
+        details: z.record(z.string().max(40), long).optional(),
+        business: short.optional(),
+        area: short.optional(),
+        terms: z.array(short).max(8).optional(),
+        links: short.optional(),
+      })
       .optional(),
     /** The live voice conversation with the Asara agent, as text, and its ElevenLabs id. */
     transcript: z.string().trim().max(12000).optional(),
@@ -276,7 +289,7 @@ export function toCrmAttributes(app: Application): Record<string, string | numbe
     aiga_storeys: app.plan?.storeys,
     aiga_estimate_usd: app.plan?.total,
     aiga_stage: app.stage,
-    aiga_role: app.stage === 'land_offer' ? 'land_owner' : 'seeker',
+    aiga_role: app.stage === 'supplier' ? 'supplier' : app.stage === 'land_offer' ? 'land_owner' : 'seeker',
     aiga_village_type: p.villageType,
     aiga_contributions: p.contributions?.join(', '),
     aiga_contribution_note: p.contributionNote,
@@ -287,15 +300,23 @@ export function toCrmAttributes(app: Application): Record<string, string | numbe
     aiga_land_size: p.landOffer?.size,
     aiga_land_terms: p.landOffer?.terms,
     aiga_land_notes: p.landOffer?.notes,
+    aiga_supplier_offers: p.supplier?.offers.join(', '),
+    aiga_supplier_business: p.supplier?.business,
+    aiga_supplier_area: p.supplier?.area,
+    aiga_supplier_terms: p.supplier?.terms?.join(', '),
+    aiga_supplier_links: p.supplier?.links,
+    aiga_supplier_details: p.supplier?.details ? supplierDetails(p.supplier.details) : undefined,
     aiga_home_name: p.homeName,
     aiga_builder_edits: p.builderEdits,
     aiga_fit: p.fit,
     aiga_engagement_score: engagementScore(app),
     aiga_agent_conversation_id: p.agentConversationId,
-    [app.stage === 'lead' || app.stage === 'interest' ? 'aiga_saved_at' : app.stage === 'land_offer' ? 'aiga_offered_at' : 'aiga_applied_at']: new Date().toISOString(),
+    [app.stage === 'lead' || app.stage === 'interest' ? 'aiga_saved_at' : app.stage === 'land_offer' || app.stage === 'supplier' ? 'aiga_offered_at' : 'aiga_applied_at']: new Date().toISOString(),
   };
   return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined && v !== '')) as Record<string, string | number>;
 }
+
+const supplierDetails = (d: Record<string, string>) => Object.entries(d).map(([k, v]) => `${k}: ${v}`).join(' | ');
 
 export function memoryNote(app: Application): string {
   const p = app.profile;
@@ -305,12 +326,18 @@ export function memoryNote(app: Application): string {
       application: `Applied to AIGA Village Nusa Dua through Asara.`,
       interest: `Joined the Asara circle${p.placeName ? ` for ${p.placeName}` : ''}: Asara will introduce them as their tribe forms.`,
       land_offer: `Offered land through Asara.`,
+      supplier: `Offered to help build villages through the Asara supplier gate: ${p.supplier?.offers.join(', ') || 'see below'}.`,
     }[app.stage],
     p.villageType ? `The village calling to them: ${p.villageType}` : '',
     p.contributions?.length || p.contributionNote ? `What they could bring: ${[p.contributions?.join(', '), p.contributionNote].filter(Boolean).join('. ')}` : '',
     p.investRange ? `Money they could invest: ${p.investRange}.` : '',
     p.placeWishes?.length ? `What they look for in a place: ${p.placeWishes.join(', ')}.` : '',
     p.landOffer ? `Land offered: ${[p.landOffer.region && `where: ${p.landOffer.region}`, p.landOffer.size && `size: ${p.landOffer.size}`, p.landOffer.terms && `terms: ${p.landOffer.terms}`, p.landOffer.notes && `notes: ${p.landOffer.notes}`].filter(Boolean).join('; ')}.` : '',
+    p.supplier?.business ? `Business: ${p.supplier.business}.` : '',
+    p.supplier?.details ? Object.entries(p.supplier.details).map(([k, v]) => `${k}: ${v}`).join('\n') : '',
+    p.supplier?.area ? `Where they work: ${p.supplier.area}.` : '',
+    p.supplier?.terms?.length ? `How they'd take part: ${p.supplier.terms.join(', ')}.` : '',
+    p.supplier?.links ? `Links: ${p.supplier.links}` : '',
     p.homeName ? `They named their home "${p.homeName}".` : '',
     p.fit ? `Could they see their family living here? ${p.fit}.` : '',
     `Engagement score: ${engagementScore(app)}/100.`,
@@ -392,7 +419,12 @@ export function onboardingRouter(): Router {
     const app = parsed.data;
     try {
       const pushed = await jm('/api/people', {
-        entryPoint: (app.stage === 'land_offer' && process.env.JMISSION_LAND_ENTRY_POINT) || process.env.JMISSION_ENTRY_POINT,
+        // Offers go to their own entry point when one is set: suppliers to the supplier gate, land owners to land offers
+        // (or the supplier gate), everyone else to the main one.
+        entryPoint:
+          (app.stage === 'supplier' && process.env.JMISSION_SUPPLIER_ENTRY_POINT) ||
+          (app.stage === 'land_offer' && (process.env.JMISSION_LAND_ENTRY_POINT || process.env.JMISSION_SUPPLIER_ENTRY_POINT)) ||
+          process.env.JMISSION_ENTRY_POINT,
         consent: true,
         firstName: app.firstName,
         ...(app.email ? { email: app.email } : {}),
